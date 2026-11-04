@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Left arm of the V: red gradient -->
+    <path android:pathData="M24,25 L41,25 L59,84 L45,84 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="24"
+                android:startY="25"
+                android:endX="59"
+                android:endY="84">
+                <item android:color="#FFFF5252" android:offset="0.0" />
+                <item android:color="#FFE53935" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Right arm of the V: blue gradient -->
+    <path android:pathData="M67,25 L84,25 L63,84 L49,84 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="84"
+                android:startY="25"
+                android:endX="49"
+                android:endY="84">
+                <item android:color="#FF00B0FF" android:offset="0.0" />
+                <item android:color="#FF2979FF" android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Intertwined play button -->
+    <path
+        android:pathData="M48,41 L48,67 L70,54 Z"
+        android:fillColor="#F5F6FA" />
+
+    <path
+        android:pathData="M54,37 A17,17 0,1 1,53.99 37"
+        android:strokeColor="#33FFFFFF"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000" />
+</vector>

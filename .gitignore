@@ -1,0 +1,37 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Android Studio and IntelliJ
+.idea/
+*.iml
+.local
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Build outputs
+app/build/
+*.apk
+*.aab
+output.json
+
+# Local configuration and secrets
+local.properties
+*.jks
+*.keystore
+*.p12
+release.keystore
+vidvibe-release.jks
+vidvibe-release.jks.base64
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Operating system files
+.DS_Store
+Thumbs.db

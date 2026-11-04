@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="sharedpref" path="vidvibe_settings.xml" />
+        <include domain="sharedpref" path="vidvibe_playlists.xml" />
+        <exclude domain="file" path="yt-dlp/" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="sharedpref" path="vidvibe_settings.xml" />
+        <include domain="sharedpref" path="vidvibe_playlists.xml" />
+    </device-transfer>
+</data-extraction-rules>
