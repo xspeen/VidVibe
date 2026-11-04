@@ -87,20 +87,21 @@ workflow artifact.
 ### Release builds
 
 `.github/workflows/android-release.yml` runs when a tag beginning with `v` is
-pushed. It builds the release APK, builds a debug APK as a fallback, and publishes
-a GitHub Release with the APKs attached.
+pushed. It builds the signed release APK, verifies its certificate, and publishes
+a GitHub Release with the APK attached.
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.2
+git push origin v1.0.2
 ```
 
-Manual dispatch also builds the APKs and uploads them as artifacts, but does not
+Manual dispatch also builds the APK and uploads it as an artifact, but does not
 publish a GitHub Release.
 
 ### Release signing
 
-For a signed release, add these repository secrets:
+Releases are signed with the VidVibe release key. The key and its passwords are
+stored only in these repository secrets:
 
 | Secret | Meaning |
 | --- | --- |
@@ -122,9 +123,13 @@ base64 -w 0 vidvibe-release.jks > vidvibe-release.jks.base64
 Paste the contents of `vidvibe-release.jks.base64` into
 `VIDVIBE_KEYSTORE_BASE64`. Never commit the keystore or its passwords.
 
-If the secrets are not configured, the release APK is signed with the debug key
-so it remains installable. Add the secrets above before distributing the app
-outside of sideloading.
+If the secrets are not configured, the release APK falls back to debug signing,
+which installs fine on its own but cannot update a release-signed install. Keep
+the same key for every release so updates install over the previous version
+without an uninstall step.
+
+The release workflow verifies the APK certificate with `apksigner` and fails if
+the APK is not signed with the VidVibe release key.
 
 ## Build locally (optional)
 
