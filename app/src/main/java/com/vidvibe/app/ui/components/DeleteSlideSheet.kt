@@ -139,6 +139,7 @@ fun DeleteSlideSheet(
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             DeleteSheetContent(
+                visible = visible,
                 selectedCount = selectedCount,
                 onDismiss = onDismiss,
                 onConfirm = onConfirm,
@@ -150,6 +151,7 @@ fun DeleteSlideSheet(
 
 @Composable
 private fun DeleteSheetContent(
+    visible: Boolean,
     selectedCount: Int,
     onDismiss: () -> Unit,
     onConfirm: suspend () -> Boolean,
