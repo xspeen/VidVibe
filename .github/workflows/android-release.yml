@@ -85,7 +85,11 @@ jobs:
             APKSIGNER="$SDK_ROOT/build-tools/35.0.0/apksigner"
           fi
           echo "Using $APKSIGNER"
-          "$APKSIGNER" verify --verbose --print-certs release-artifacts/app-release.apk | tee apk-signature.txt
+          "$APKSIGNER" verify release-artifacts/app-release.apk
+          # With minSdk 24+, apksigner hides the v1 result by default, so verify
+          # against API 23 to confirm the JAR signature is really present.
+          "$APKSIGNER" verify --verbose --print-certs --min-sdk-version 23 \
+            release-artifacts/app-release.apk | tee apk-signature.txt
           if ! grep -q "Verified using v1 scheme (JAR signing): true" apk-signature.txt; then
             echo "::error::Release APK is missing the v1 JAR signature."
             exit 1
