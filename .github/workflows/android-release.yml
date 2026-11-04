@@ -116,7 +116,7 @@ jobs:
             Built automatically by GitHub Actions from the source at this tag.
 
             Assets:
-            - `app-release.apk` - optimized release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a, armeabi-v7a, x86_64)
+            - `app-release.apk` - optimized release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a and x86_64)
             - `SHA256SUMS.txt` - checksum for verifying the download
 
             If Android reports a signature error while updating, uninstall the previous
