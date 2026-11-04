@@ -89,8 +89,7 @@ jobs:
             Built automatically by GitHub Actions from the source at this tag.
 
             Assets:
-            - `app-release.apk` - signed release build when repository signing secrets are configured
-            - `app-release-unsigned.apk` - unsigned build when signing secrets are not configured
+            - `app-release.apk` - optimized release build, signed with the repository release key when configured, otherwise with the debug key so it stays installable
             - `app-debug.apk` - installable debug build
 
             VidVibe is free and open source under the MIT License.

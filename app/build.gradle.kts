@@ -55,6 +55,10 @@ android {
             )
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
+            } else {
+                // No release keystore configured: sign with the debug key so the
+                // published release APK stays installable.
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
     }

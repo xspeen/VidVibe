@@ -122,8 +122,9 @@ base64 -w 0 vidvibe-release.jks > vidvibe-release.jks.base64
 Paste the contents of `vidvibe-release.jks.base64` into
 `VIDVIBE_KEYSTORE_BASE64`. Never commit the keystore or its passwords.
 
-If the secrets are not configured, the release workflow produces an unsigned
-release APK plus an installable debug APK.
+If the secrets are not configured, the release APK is signed with the debug key
+so it remains installable. Add the secrets above before distributing the app
+outside of sideloading.
 
 ## Build locally (optional)
 
