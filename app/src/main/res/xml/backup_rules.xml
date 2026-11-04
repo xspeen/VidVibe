@@ -2,5 +2,4 @@
 <full-backup-content>
     <include domain="sharedpref" path="vidvibe_settings.xml" />
     <include domain="sharedpref" path="vidvibe_playlists.xml" />
-    <exclude domain="file" path="yt-dlp/" />
 </full-backup-content>

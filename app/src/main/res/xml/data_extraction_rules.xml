@@ -3,7 +3,6 @@
     <cloud-backup>
         <include domain="sharedpref" path="vidvibe_settings.xml" />
         <include domain="sharedpref" path="vidvibe_playlists.xml" />
-        <exclude domain="file" path="yt-dlp/" />
     </cloud-backup>
     <device-transfer>
         <include domain="sharedpref" path="vidvibe_settings.xml" />
