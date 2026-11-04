@@ -143,7 +143,7 @@ private fun NavButton(
                 .width(20.dp),
             contentAlignment = Alignment.TopCenter
         ) {
-            AnimatedVisibility(
+            ScopedAnimatedVisibility(
                 visible = selected,
                 enter = fadeIn(),
                 exit = fadeOut()

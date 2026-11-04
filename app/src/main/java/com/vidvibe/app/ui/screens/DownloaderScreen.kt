@@ -813,7 +813,7 @@ private fun DownloadProgressPage(
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "${running.progress}",
+                                text = "${state.progress}",
                                 style = MaterialTheme.typography.displayMedium,
                                 color = VidVibeText,
                                 fontWeight = FontWeight.Light
@@ -827,7 +827,7 @@ private fun DownloadProgressPage(
                     }
                     Spacer(Modifier.height(28.dp))
                     Text(
-                        text = running.status,
+                        text = state.status,
                         style = MaterialTheme.typography.titleMedium,
                         color = VidVibeText,
                         textAlign = TextAlign.Center

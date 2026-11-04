@@ -109,7 +109,7 @@ fun DeleteSlideSheet(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        AnimatedVisibility(
+        ScopedAnimatedVisibility(
             visible = visible,
             enter = fadeIn(tween(180)),
             exit = fadeOut(tween(180))
@@ -126,7 +126,7 @@ fun DeleteSlideSheet(
             )
         }
 
-        AnimatedVisibility(
+        ScopedAnimatedVisibility(
             visible = visible,
             enter = slideInVertically(
                 initialOffsetY = { it },
@@ -271,7 +271,7 @@ private fun DeleteSheetContent(
                     ParticleBurst(progress = particleValue)
                 }
 
-                AnimatedVisibility(
+                ScopedAnimatedVisibility(
                     visible = phase != DeletePhase.Success && phase != DeletePhase.Error,
                     enter = fadeIn(tween(200)) + scaleIn(
                         initialScale = 0.7f,
@@ -294,7 +294,7 @@ private fun DeleteSheetContent(
                     )
                 }
 
-                AnimatedVisibility(
+                ScopedAnimatedVisibility(
                     visible = phase == DeletePhase.Success,
                     enter = scaleIn(
                         initialScale = 0f,
@@ -310,7 +310,7 @@ private fun DeleteSheetContent(
                     )
                 }
 
-                AnimatedVisibility(
+                ScopedAnimatedVisibility(
                     visible = phase == DeletePhase.Error,
                     enter = scaleIn(
                         initialScale = 0f,
@@ -368,7 +368,8 @@ private fun DeleteSheetContent(
                             onDragEnd = {
                                 isDragging = false
                                 if (dragOffset >= maxOffsetPx * 0.9f) {
-                                    thumbOffset.snapTo(dragOffset)
+                                    val releaseOffset = dragOffset
+                                    scope.launch { thumbOffset.snapTo(releaseOffset) }
                                     confirmDelete()
                                 } else {
                                     scope.launch {
@@ -411,7 +412,7 @@ private fun DeleteSheetContent(
                     modifier = Modifier.align(Alignment.Center)
                 )
 
-                AnimatedVisibility(
+                ScopedAnimatedVisibility(
                     visible = phase == DeletePhase.Deleting,
                     enter = fadeIn(tween(150)),
                     exit = fadeOut(tween(150)),
