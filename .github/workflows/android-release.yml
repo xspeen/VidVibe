@@ -50,7 +50,7 @@ jobs:
             echo "VIDVIBE_KEYSTORE_PATH=$GITHUB_WORKSPACE/release.keystore" >> "$GITHUB_ENV"
             echo "Release signing enabled."
           else
-            echo "No keystore secret found. The release APK will be unsigned."
+            echo "No keystore secret found. The release APK will fall back to debug signing."
           fi
 
       - name: Build release APK
@@ -60,19 +60,16 @@ jobs:
           VIDVIBE_KEY_PASSWORD: ${{ secrets.VIDVIBE_KEY_PASSWORD }}
         run: gradle :app:assembleRelease --stacktrace
 
-      - name: Build debug APK as a fallback
-        run: gradle :app:assembleDebug --stacktrace
-
-      - name: Collect APKs
+      - name: Collect release APK
         run: |
           mkdir -p release-artifacts
-          find app/build/outputs/apk -name '*.apk' -print -exec cp {} release-artifacts/ \;
+          find app/build/outputs/apk/release -name '*.apk' -print -exec cp {} release-artifacts/ \;
           ls -lh release-artifacts
 
-      - name: Upload APKs as workflow artifacts
+      - name: Upload release APK as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: VidVibe-APKs
+          name: VidVibe-release-APK
           path: release-artifacts/*.apk
           if-no-files-found: error
 
@@ -89,7 +86,6 @@ jobs:
             Built automatically by GitHub Actions from the source at this tag.
 
             Assets:
-            - `app-release.apk` - optimized release build, signed with the repository release key when configured, otherwise with the debug key so it stays installable
-            - `app-debug.apk` - installable debug build
+            - `app-release.apk` - optimized release build signed with the VidVibe release key
 
             VidVibe is free and open source under the MIT License.
