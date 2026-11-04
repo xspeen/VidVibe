@@ -62,7 +62,7 @@ There are no accounts, no ads, and no analytics. Your media stays on your phone.
 - SharedPreferences JSON storage for playlists
 - Chaquopy 16.1.0 with Python 3.12
 - yt-dlp 2025.09.05
-- AGP 8.7.3, Gradle 8.9, compileSdk and targetSdk 35, minSdk 24
+- AGP 8.9.1, Gradle 8.11.1, compileSdk and targetSdk 35, minSdk 24
 
 ## Requirements
 
@@ -145,7 +145,7 @@ app/build/outputs/apk/debug/app-debug.apk
 ```
 
 If a Gradle wrapper is not present, run `gradle :app:assembleDebug` with Gradle
-8.9 installed.
+8.11.1 installed.
 
 ## Project structure
 
