@@ -30,10 +30,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Python 3.12 for Chaquopy
+      - name: Set up Python 3.11 for Chaquopy
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
       - name: Set up Gradle 8.11.1
         uses: gradle/actions/setup-gradle@v4
@@ -106,6 +106,22 @@ jobs:
           fi
           echo "Release APK is signed with the VidVibe release key."
 
+      - name: Verify APK architecture coverage
+        run: |
+          APK=release-artifacts/app-release.apk
+          LISTING=$(unzip -l "$APK")
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            if ! echo "$LISTING" | grep -q "lib/$abi/libpython"; then
+              echo "::error::Release APK is missing native libraries for $abi."
+              exit 1
+            fi
+            echo "Found native libraries for $abi"
+          done
+          if echo "$LISTING" | grep -q "lib/x86/"; then
+            echo "::error::Unexpected 32-bit x86 native libraries in the release APK."
+            exit 1
+          fi
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -120,10 +136,14 @@ jobs:
             Built automatically by GitHub Actions from the source at this tag.
 
             Assets:
-            - `app-release.apk` - optimized release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a and x86_64)
+            - `app-release.apk` - optimized universal release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a, armeabi-v7a, and x86_64 native libraries)
             - `SHA256SUMS.txt` - checksum for verifying the download
 
-            If Android reports a signature error while updating, uninstall the previous
-            VidVibe build first. Builds before 1.0.2 used a different signing key.
+            Requirements: Android 8.0 or newer, on a 64-bit or 32-bit ARM phone.
+
+            If Android reports "package appears to be invalid", check that the downloaded
+            file size matches `SHA256SUMS.txt` - a cut-off download is the most common
+            cause. If Android reports a signature error while updating, uninstall the
+            previous VidVibe build first; builds before 1.0.2 used a different signing key.
 
             VidVibe is free and open source under the MIT License.

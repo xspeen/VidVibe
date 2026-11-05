@@ -22,15 +22,15 @@ android {
         applicationId = "com.vidvibe.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.0.3"
+        versionCode = 5
+        versionName = "1.0.4"
 
         vectorDrawables {
             useSupportLibrary = true
         }
 
         ndk {
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
 
@@ -94,9 +94,12 @@ android {
 
 chaquopy {
     defaultConfig {
-        version = "3.12"
+        // Python 3.11 is the newest Chaquopy runtime that ships armeabi-v7a
+        // (32-bit ARM) as well as arm64-v8a and x86_64. Python 3.12+ is
+        // 64-bit only, which makes the APK uninstallable on 32-bit phones.
+        version = "3.11"
         pip {
-            install("yt-dlp==2025.09.05")
+            install("yt-dlp==2026.10.26")
         }
     }
 }

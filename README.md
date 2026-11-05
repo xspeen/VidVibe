@@ -60,14 +60,15 @@ There are no accounts, no ads, and no analytics. Your media stays on your phone.
 - Coil with `coil-video` for thumbnails
 - DataStore Preferences for settings
 - SharedPreferences JSON storage for playlists
-- Chaquopy 16.1.0 with Python 3.12
-- yt-dlp 2025.09.05
-- AGP 8.9.1, Gradle 8.11.1, compileSdk and targetSdk 35, minSdk 24
+- Chaquopy 16.1.0 with Python 3.11 (the newest runtime that also ships armeabi-v7a)
+- yt-dlp 2026.10.26
+- AGP 8.9.1, Gradle 8.11.1, compileSdk and targetSdk 35, minSdk 24 (Android 7.0+)
+- Native ABIs: arm64-v8a, armeabi-v7a, x86_64
 
 ## Requirements
 
 - JDK 17 for the Android build.
-- Python 3.12 available on the build machine. Chaquopy uses it to resolve and
+- Python 3.11 available on the build machine. Chaquopy uses it to resolve and
   package the embedded Python runtime and pip packages.
 - Android SDK Platform 35 and Build Tools for `compileSdk` 35.
 
@@ -134,9 +135,9 @@ the APK is not signed with the VidVibe release key.
 ## Build locally (optional)
 
 ```bash
-# JDK 17 and Python 3.12 are required
+# JDK 17 and Python 3.11 are required
 export JAVA_HOME=/path/to/jdk-17
-export PATH="/path/to/python3.12/bin:$PATH"
+export PATH="/path/to/python3.11/bin:$PATH"
 
 # Point Gradle at the Android SDK
 echo "sdk.dir=/path/to/android-sdk" > local.properties
