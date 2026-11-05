@@ -92,6 +92,7 @@ class MainActivity : FragmentActivity() {
                         Lifecycle.Event.ON_STOP -> {
                             if (currentLockEnabled) hasUnlocked = false
                         }
+                        else -> Unit
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
