@@ -56,17 +56,22 @@ fun PullToRefresh(
         if (refreshing.value) return
         refreshing.value = true
         scope.launch {
-            pullOffset.animateTo(
-                refreshHoldPx,
-                animationSpec = tween(280, easing = FastOutSlowInEasing)
-            )
-            currentOnRefresh.value()
-            delay(1200)
-            pullOffset.animateTo(
-                0f,
-                animationSpec = tween(280, easing = FastOutSlowInEasing)
-            )
-            refreshing.value = false
+            try {
+                pullOffset.animateTo(
+                    refreshHoldPx,
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                )
+                currentOnRefresh.value()
+                // Hold the spinner for seven seconds, then always return the
+                // list to its resting position even if the scan is cancelled.
+                delay(7000)
+            } finally {
+                pullOffset.animateTo(
+                    0f,
+                    animationSpec = tween(280, easing = FastOutSlowInEasing)
+                )
+                refreshing.value = false
+            }
         }
     }
 

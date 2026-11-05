@@ -13,6 +13,8 @@ import com.vidvibe.app.data.DeleteResult
 import com.vidvibe.app.data.Playlist
 import com.vidvibe.app.data.PlaylistStore
 import com.vidvibe.app.data.SettingsStore
+import com.vidvibe.app.data.TrashStore
+import com.vidvibe.app.data.TrashedVideo
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.VideoRepository
 import com.vidvibe.app.download.YtDlpManager
@@ -39,6 +41,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = VideoRepository(application)
     private val settingsStore = SettingsStore(application)
     private val playlistStore = PlaylistStore(application)
+    private val trashStore = TrashStore(application)
     private val ytDlpManager = YtDlpManager(application)
 
     val settings: StateFlow<AppSettings> = settingsStore.settings.stateIn(
@@ -48,6 +51,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val playlists: StateFlow<List<Playlist>> = playlistStore.playlists
+    val trash: StateFlow<List<TrashedVideo>> = trashStore.trash
 
     private val _videos = MutableStateFlow<List<VideoItem>>(emptyList())
     val videos: StateFlow<List<VideoItem>> = _videos.asStateFlow()
@@ -60,6 +64,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private var refreshJob: Job? = null
     private var downloadJob: Job? = null
+    private var pendingPermanentDeleteIds: Set<Long> = emptySet()
 
     init {
         refresh()
@@ -69,9 +74,46 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             _isLoading.value = true
-            _videos.value = repository.getVideos()
+            val all = repository.getVideos()
+            trashStore.prune(all.map { it.id }.toSet())
+            _videos.value = all.filterNot { it.id in trashStore.trashedIds }
             _isLoading.value = false
         }
+    }
+
+    fun moveToTrash(videos: List<VideoItem>) {
+        if (videos.isEmpty()) return
+        trashStore.add(videos)
+        viewModelScope.launch { loadVideosNow() }
+    }
+
+    fun restoreFromTrash(ids: Set<Long>) {
+        if (ids.isEmpty()) return
+        trashStore.remove(ids)
+        viewModelScope.launch { loadVideosNow() }
+    }
+
+    suspend fun deletePermanently(ids: Set<Long>): DeleteResult {
+        if (ids.isEmpty()) return DeleteResult.Deleted
+        val entries = trashStore.entriesFor(ids)
+        if (entries.isEmpty()) {
+            trashStore.remove(ids)
+            loadVideosNow()
+            return DeleteResult.Deleted
+        }
+
+        val result = repository.deleteVideos(entries.map { Uri.parse(it.uri) })
+        when (result) {
+            is DeleteResult.Deleted -> {
+                trashStore.remove(ids)
+                loadVideosNow()
+            }
+            is DeleteResult.NeedsConfirmation -> {
+                pendingPermanentDeleteIds = ids
+            }
+            is DeleteResult.Failed -> Unit
+        }
+        return result
     }
 
     suspend fun deleteVideos(uris: List<Uri>): DeleteResult {
@@ -83,7 +125,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onSystemDeleteConfirmed() {
+        if (pendingPermanentDeleteIds.isNotEmpty()) {
+            trashStore.remove(pendingPermanentDeleteIds)
+            pendingPermanentDeleteIds = emptySet()
+        }
         refresh()
+    }
+
+    fun onSystemDeleteCancelled() {
+        pendingPermanentDeleteIds = emptySet()
     }
 
     fun startDownload(url: String, qualityHeight: Int) {
@@ -181,7 +231,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun loadVideosNow() {
-        _videos.value = repository.getVideos()
+        val all = repository.getVideos()
+        trashStore.prune(all.map { it.id }.toSet())
+        _videos.value = all.filterNot { it.id in trashStore.trashedIds }
     }
 
     private fun isOnWifi(): Boolean {

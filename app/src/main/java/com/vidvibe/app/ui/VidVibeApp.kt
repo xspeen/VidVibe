@@ -9,12 +9,15 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -25,7 +28,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,6 +44,7 @@ import com.vidvibe.app.ui.components.VidVibeToastHost
 import com.vidvibe.app.ui.screens.DownloaderScreen
 import com.vidvibe.app.ui.screens.LocalScreen
 import com.vidvibe.app.ui.screens.MeScreen
+import com.vidvibe.app.ui.screens.TrashScreen
 import com.vidvibe.app.ui.screens.VideoPlayerScreen
 import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.viewmodel.MainViewModel
@@ -49,11 +56,13 @@ fun VidVibeApp(viewModel: MainViewModel) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val videos by viewModel.videos.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
+    val trash by viewModel.trash.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
 
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var drawerOpen by remember { mutableStateOf(false) }
+    var trashOpen by remember { mutableStateOf(false) }
     var playerVideo by remember { mutableStateOf<VideoItem?>(null) }
     var selectionActive by remember { mutableStateOf(false) }
     var downloaderFullScreen by remember { mutableStateOf(false) }
@@ -71,6 +80,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
             viewModel.onSystemDeleteConfirmed()
             showToast("Videos deleted permanently")
         } else {
+            viewModel.onSystemDeleteCancelled()
             showToast("Deletion cancelled")
         }
     }
@@ -85,30 +95,50 @@ fun VidVibeApp(viewModel: MainViewModel) {
         }
     }
 
-    BackHandler(enabled = selectedTab != 0 && playerVideo == null && !drawerOpen) {
+    BackHandler(enabled = selectedTab != 0 && playerVideo == null && !drawerOpen && !trashOpen) {
         selectedTab = 0
     }
 
     val appBackground = LocalAppBackground.current
-    val showBottomNav = !selectionActive && playerVideo == null && !downloaderFullScreen
+    val showBottomNav = !selectionActive &&
+        playerVideo == null &&
+        !downloaderFullScreen &&
+        !trashOpen
+
+    var rootWidth by remember { mutableStateOf(0) }
+    val drawerProgress by animateFloatAsState(
+        targetValue = if (drawerOpen) 1f else 0f,
+        animationSpec = tween(300),
+        label = "drawer-content-progress"
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(appBackground)
     ) {
-        Column(Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .onSizeChanged { rootWidth = it.width }
+                .graphicsLayer {
+                    val shift = rootWidth * 0.78f * drawerProgress
+                    translationX = -shift
+                    val scale = 1f - 0.06f * drawerProgress
+                    scaleX = scale
+                    scaleY = scale
+                }
+                .clip(
+                    RoundedCornerShape((22f * drawerProgress).dp)
+                )
+        ) {
             Box(Modifier.weight(1f)) {
-                when (selectedTab) {
-                    0 -> LocalScreen(
-                        videos = videos,
-                        isLoading = isLoading,
-                        playlists = playlists,
-                        onOpenVideo = { playerVideo = it },
-                        onRefresh = viewModel::refresh,
-                        onOpenDrawer = { drawerOpen = true },
-                        onSelectionModeChanged = { selectionActive = it },
-                        onDeleteVideos = { uris -> viewModel.deleteVideos(uris) },
+                when {
+                    trashOpen -> TrashScreen(
+                        items = trash,
+                        onBack = { trashOpen = false },
+                        onRestore = { ids -> viewModel.restoreFromTrash(ids) },
+                        onDeletePermanently = { ids -> viewModel.deletePermanently(ids) },
                         onLaunchDeleteConfirmation = { intentSender ->
                             runCatching {
                                 deleteLauncher.launch(
@@ -118,6 +148,17 @@ fun VidVibeApp(viewModel: MainViewModel) {
                                 showToast("Android could not open the deletion dialog.")
                             }
                         },
+                        showToast = { showToast(it) }
+                    )
+                    selectedTab == 0 -> LocalScreen(
+                        videos = videos,
+                        isLoading = isLoading,
+                        playlists = playlists,
+                        onOpenVideo = { playerVideo = it },
+                        onRefresh = viewModel::refresh,
+                        onOpenDrawer = { drawerOpen = true },
+                        onSelectionModeChanged = { selectionActive = it },
+                        onMoveToTrash = { items -> viewModel.moveToTrash(items) },
                         onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
                         onAddVideosToPlaylist = { playlistId, ids ->
                             viewModel.addVideosToPlaylist(playlistId, ids)
@@ -127,7 +168,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
                         },
                         showToast = { showToast(it) }
                     )
-                    1 -> DownloaderScreen(
+                    selectedTab == 1 -> DownloaderScreen(
                         downloadState = downloadState,
                         settings = settings,
                         onStartDownload = viewModel::startDownload,
@@ -172,9 +213,15 @@ fun VidVibeApp(viewModel: MainViewModel) {
             selectedTab = selectedTab,
             videoCount = videos.size,
             playlistCount = playlists.size,
+            trashCount = trash.size,
             onDismiss = { drawerOpen = false },
             onSelectTab = { tab ->
                 selectedTab = tab
+                trashOpen = false
+                drawerOpen = false
+            },
+            onOpenTrash = {
+                trashOpen = true
                 drawerOpen = false
             },
             onRefresh = {

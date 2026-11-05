@@ -3,8 +3,6 @@ package com.vidvibe.app.ui.screens
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Intent
-import android.content.IntentSender
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -25,6 +23,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -103,8 +102,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
@@ -115,7 +116,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import com.vidvibe.app.data.DeleteResult
 import com.vidvibe.app.data.Playlist
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.ui.components.ClassicLoader
@@ -147,8 +147,7 @@ fun LocalScreen(
     onRefresh: () -> Unit,
     onOpenDrawer: () -> Unit,
     onSelectionModeChanged: (Boolean) -> Unit,
-    onDeleteVideos: suspend (List<Uri>) -> DeleteResult,
-    onLaunchDeleteConfirmation: (IntentSender) -> Unit,
+    onMoveToTrash: (List<VideoItem>) -> Unit,
     onCreatePlaylist: (String) -> Playlist?,
     onAddVideosToPlaylist: (String, Set<Long>) -> Unit,
     onDeletePlaylist: (String) -> Unit,
@@ -158,7 +157,9 @@ fun LocalScreen(
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val density = LocalDensity.current
     val scope = rememberCoroutineScope()
+    val swipeThreshold = with(density) { 72.dp.toPx() }
 
     var currentTab by rememberSaveable { mutableStateOf(0) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
@@ -217,6 +218,15 @@ fun LocalScreen(
         searchOpen = false
         searchQuery = ""
         keyboardController?.hide()
+    }
+
+    fun selectTab(index: Int) {
+        if (index == currentTab) return
+        currentTab = index
+        if (index != 0) {
+            folderFilter = null
+            playlistFilterId = null
+        }
     }
 
     val visibleVideos = remember(
@@ -305,13 +315,7 @@ fun LocalScreen(
 
         LocalTabBar(
             selectedTab = currentTab,
-            onSelect = {
-                currentTab = it
-                if (it != 0) {
-                    folderFilter = null
-                    playlistFilterId = null
-                }
-            },
+            onSelect = { selectTab(it) },
             dimmed = selectionMode
         )
 
@@ -319,6 +323,27 @@ fun LocalScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                .pointerInput(selectionMode, searchOpen, currentTab) {
+                    if (selectionMode || searchOpen) return@pointerInput
+                    var dragTotal = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragTotal = 0f },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragTotal += dragAmount
+                        },
+                        onDragEnd = {
+                            when {
+                                dragTotal <= -swipeThreshold && currentTab < 2 ->
+                                    selectTab(currentTab + 1)
+                                dragTotal >= swipeThreshold && currentTab > 0 ->
+                                    selectTab(currentTab - 1)
+                            }
+                            dragTotal = 0f
+                        },
+                        onDragCancel = { dragTotal = 0f }
+                    )
+                }
         ) {
             PullToRefresh(
                 onRefresh = {
@@ -405,27 +430,13 @@ fun LocalScreen(
                     if (items.isEmpty()) {
                         false
                     } else {
-                        when (val result = onDeleteVideos(items.map { it.uri })) {
-                            DeleteResult.Deleted -> {
-                                deleteStatusMessage = if (items.size == 1) {
-                                    "Video deleted permanently"
-                                } else {
-                                    "${items.size} videos deleted permanently"
-                                }
-                                true
-                            }
-                            is DeleteResult.NeedsConfirmation -> {
-                                onLaunchDeleteConfirmation(result.intentSender)
-                                showDeleteSheet = false
-                                exitSelection()
-                                showToast("Confirm deletion in the system dialog")
-                                false
-                            }
-                            is DeleteResult.Failed -> {
-                                showToast(result.message)
-                                false
-                            }
+                        onMoveToTrash(items)
+                        deleteStatusMessage = if (items.size == 1) {
+                            "Moved to Trash"
+                        } else {
+                            "${items.size} videos moved to Trash"
                         }
+                        true
                     }
                 },
                 onConfirmed = {
@@ -434,11 +445,16 @@ fun LocalScreen(
                     exitSelection()
                     showToast(
                         deleteStatusMessage.ifBlank {
-                            if (count == 1) "Video deleted permanently"
-                            else "$count videos deleted permanently"
+                            if (count == 1) "Moved to Trash"
+                            else "$count videos moved to Trash"
                         }
                     )
-                }
+                },
+                title = "Move ${selectedIds.size} to Trash?",
+                description = "Files in Trash haven't been permanently deleted from your device.",
+                slideLabel = "Slide to Delete ${selectedIds.size} ${
+                    if (selectedIds.size == 1) "file" else "files"
+                }"
             )
         }
     }

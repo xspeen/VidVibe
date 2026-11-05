@@ -35,6 +35,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
@@ -70,8 +71,10 @@ fun AppDrawer(
     selectedTab: Int,
     videoCount: Int,
     playlistCount: Int,
+    trashCount: Int,
     onDismiss: () -> Unit,
     onSelectTab: (Int) -> Unit,
+    onOpenTrash: () -> Unit,
     onRefresh: () -> Unit,
     onAbout: () -> Unit,
     onOpenGitHub: () -> Unit
@@ -208,6 +211,20 @@ fun AppDrawer(
                         subtitle = "Appearance and settings",
                         selected = selectedTab == 2,
                         onClick = { onSelectTab(2) }
+                    )
+                    DrawerItem(
+                        icon = Icons.Outlined.DeleteOutline,
+                        title = "Trash",
+                        subtitle = if (trashCount == 0) {
+                            "No deleted videos"
+                        } else {
+                            "$trashCount ${if (trashCount == 1) "video" else "videos"} to restore or remove"
+                        },
+                        selected = false,
+                        onClick = {
+                            onOpenTrash()
+                            onDismiss()
+                        }
                     )
 
                     Spacer(Modifier.height(20.dp))

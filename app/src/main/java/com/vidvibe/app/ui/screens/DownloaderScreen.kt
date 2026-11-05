@@ -119,6 +119,8 @@ private data class QualityOption(
 )
 
 private val qualityOptions = listOf(
+    QualityOption(2160, "4K", "Highest detail when the source allows it"),
+    QualityOption(1440, "2K", "Sharp quality for larger screens"),
     QualityOption(1080, "Full HD", "1080p when the source allows it"),
     QualityOption(720, "HD", "Balanced quality and file size"),
     QualityOption(480, "SD", "Smaller file, faster download"),
@@ -596,7 +598,7 @@ private fun QualityPage(
 
             Text(
                 text = "Best available quality up to your selection. " +
-                    "VidVibe picks a progressive stream so video and audio stay in sync.",
+                    "Video and audio are combined on your device so the saved file plays smoothly.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = VidVibeTextSecondary,
                 modifier = Modifier.widthIn(max = 560.dp)
@@ -841,7 +843,7 @@ private fun DownloadProgressPage(
                     )
                     Spacer(Modifier.height(22.dp))
                     Text(
-                        text = "Keep VidVibe open while the video downloads.",
+                        text = "Video and audio are combined on your device. Keep VidVibe open while the download finishes.",
                         style = MaterialTheme.typography.bodySmall,
                         color = VidVibeTextTertiary,
                         textAlign = TextAlign.Center

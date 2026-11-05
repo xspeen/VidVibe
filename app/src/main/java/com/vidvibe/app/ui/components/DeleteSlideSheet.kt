@@ -101,7 +101,10 @@ fun DeleteSlideSheet(
     onDismiss: () -> Unit,
     onConfirm: suspend () -> Boolean,
     onConfirmed: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    title: String? = null,
+    description: String? = null,
+    slideLabel: String? = null
 ) {
     BackHandler(enabled = visible) {
         if (!visible) return@BackHandler
@@ -143,7 +146,10 @@ fun DeleteSlideSheet(
                 selectedCount = selectedCount,
                 onDismiss = onDismiss,
                 onConfirm = onConfirm,
-                onConfirmed = onConfirmed
+                onConfirmed = onConfirmed,
+                title = title,
+                description = description,
+                slideLabel = slideLabel
             )
         }
     }
@@ -155,7 +161,10 @@ private fun DeleteSheetContent(
     selectedCount: Int,
     onDismiss: () -> Unit,
     onConfirm: suspend () -> Boolean,
-    onConfirmed: () -> Unit
+    onConfirmed: () -> Unit,
+    title: String?,
+    description: String?,
+    slideLabel: String?
 ) {
     var phase by remember { mutableStateOf(DeletePhase.Ready) }
     val scope = rememberCoroutineScope()
@@ -329,7 +338,7 @@ private fun DeleteSheetContent(
 
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "Delete $selectedCount ${if (selectedCount == 1) "video" else "videos"}?",
+                text = title ?: "Delete $selectedCount ${if (selectedCount == 1) "video" else "videos"}?",
                 style = MaterialTheme.typography.titleMedium,
                 color = VidVibeText,
                 fontWeight = FontWeight.Medium,
@@ -337,7 +346,7 @@ private fun DeleteSheetContent(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "These files will be permanently deleted from this device. This cannot be undone.",
+                text = description ?: "These files will be permanently deleted from this device. This cannot be undone.",
                 style = MaterialTheme.typography.bodySmall,
                 color = VidVibeTextTertiary,
                 textAlign = TextAlign.Center,
@@ -404,7 +413,7 @@ private fun DeleteSheetContent(
                 )
 
                 Text(
-                    text = "Slide to Delete $selectedCount ${if (selectedCount == 1) "file" else "files"}",
+                    text = slideLabel ?: "Slide to Delete $selectedCount ${if (selectedCount == 1) "file" else "files"}",
                     style = MaterialTheme.typography.labelLarge,
                     color = VidVibeTextSecondary.copy(
                         alpha = (1f - progress * 0.9f).coerceIn(0.1f, 1f)

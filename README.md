@@ -13,19 +13,24 @@ There are no accounts, no ads, and no analytics. Your media stays on your phone.
 
 ### Local library
 - Reads videos from the device through MediaStore.
-- Videos, Folders, and Playlists tabs.
+- Videos, Folders, and Playlists tabs, with horizontal swipe navigation.
 - Search, grid and list layouts, and shuffle.
-- Custom pull-to-refresh with a twelve-blade spinner.
+- Custom pull-to-refresh with a twelve-blade spinner that holds for seven seconds.
 - Long-press selection with a floating Share, Add to, and Delete menu.
 - Playlist creation, add-to-playlist, and playlist removal.
-- Video playback with Media3 ExoPlayer.
+- Video playback with Media3 ExoPlayer, plus left-side brightness and
+  right-side volume swipe gestures with an on-screen indicator.
+- Trash with Restore and Delete Permanently actions.
 - Permanent deletion through MediaStore, including the Android system
   confirmation flow where the platform requires it.
 
 ### Downloader
 - Paste a public link and download a video into `Movies/VidVibe`.
-- Full-screen quality selection from 1080p down to 360p, with automatic fallback
-  to the best available progressive stream.
+- Full-screen quality selection from 4K down to 360p, with automatic fallback
+  to the best available stream.
+- Separate video and audio streams are combined on the device with
+  `MediaExtractor` and `MediaMuxer`, so modern YouTube downloads keep both
+  picture and sound without shipping FFmpeg.
 - Full-screen circular progress page with a live percentage.
 - Success and error states with retry.
 - Wi-Fi-only mode.
@@ -170,11 +175,11 @@ app/src/main/java/com/vidvibe/app/
   ui/
     VidVibeApp.kt              App shell, navigation, dialogs, player overlay
     components/                Bottom nav, drawer, loader, delete sheet, refresh
-    screens/                   Local, Downloader, Me, video player
+    screens/                   Local, Downloader, Me, Trash, video player
     theme/                     Colors, typography, font scaling, background
     viewmodel/                 State, downloads, settings, playlists
 app/src/main/python/
-  yt_dlp_script.py             yt-dlp progress bridge and progressive format choice
+  yt_dlp_script.py             yt-dlp progress bridge and stream selection
 ```
 
 ## Permissions
@@ -189,20 +194,26 @@ explicitly start.
 
 ## Downloader notes
 
-VidVibe intentionally selects progressive MP4 streams which already contain both
-video and audio. This avoids shipping FFmpeg just to merge separate DASH streams,
-which keeps the APK small. If the requested quality has no progressive stream,
-the downloader retries with the best available quality.
+Modern platforms often serve video and audio as separate streams. VidVibe
+downloads the best video-only and audio-only tracks your chosen quality allows,
+then combines them on the device with Android's `MediaExtractor` and
+`MediaMuxer`. That keeps the APK small because FFmpeg is not bundled. If a
+platform offers a ready-made muxed file, VidVibe uses it directly. When a
+requested quality is unavailable, the downloader retries with the best
+available quality and reports a clear platform-specific error if the link
+cannot be downloaded.
 
 Only download media you have the right to save. Respect platform terms and
 copyright law.
 
 ## Deleting videos
 
-Videos are removed permanently from physical storage through `ContentResolver`.
-On Android 11 and newer, the system may show a confirmation dialog for media the
-app does not own. On Android 10, `RecoverableSecurityException` is handled. There
-is no in-app recycle bin because deletion is intentionally permanent.
+Deleting from the library moves videos to Trash instead of removing them
+immediately. Trash is stored locally, and the media files stay untouched until
+you choose Delete Permanently. Restore puts a video back in the library
+instantly. Permanent deletion goes through `ContentResolver`; on Android 11 and
+newer the system may show a confirmation dialog for media the app does not own,
+and on Android 10 `RecoverableSecurityException` is handled.
 
 ## Contributing
 

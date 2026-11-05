@@ -1,15 +1,28 @@
 package com.vidvibe.app.ui.screens
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.media.AudioManager
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -18,21 +31,30 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.BrightnessHigh
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.VolumeUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -46,6 +68,8 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.vidvibe.app.data.VideoItem
+import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 @Composable
 fun VideoPlayerScreen(
@@ -56,6 +80,40 @@ fun VideoPlayerScreen(
     val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnBack by rememberUpdatedState(onBack)
+
+    val activity = remember(context) { context.findActivity() }
+    val audioManager = remember(context) {
+        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    }
+    val maxVolume = remember(audioManager) {
+        audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)?.coerceAtLeast(1) ?: 1
+    }
+    var brightness by remember(activity) {
+        mutableFloatStateOf(activity.currentWindowBrightness())
+    }
+    var volume by remember(audioManager) {
+        mutableFloatStateOf(
+            audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC)?.toFloat() ?: 0f
+        )
+    }
+    var showGestureOverlay by remember { mutableStateOf(false) }
+    var overlayIsBrightness by remember { mutableStateOf(true) }
+    var overlayValue by remember { mutableFloatStateOf(0f) }
+    var gestureTick by remember { mutableIntStateOf(0) }
+
+    fun showOverlay(isBrightness: Boolean, value: Float) {
+        overlayIsBrightness = isBrightness
+        overlayValue = value.coerceIn(0f, 1f)
+        showGestureOverlay = true
+        gestureTick++
+    }
+
+    LaunchedEffect(gestureTick) {
+        if (showGestureOverlay) {
+            delay(950)
+            showGestureOverlay = false
+        }
+    }
 
     val exoPlayer = remember(video.uri) {
         ExoPlayer.Builder(context).build().apply {
@@ -102,6 +160,64 @@ fun VideoPlayerScreen(
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        // Left third adjusts brightness, right third adjusts volume. The
+        // middle stays free for the player controls.
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .fillMaxHeight()
+                .fillMaxWidth(0.3f)
+                .pointerInput(Unit) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { change, dragAmount ->
+                            change.consume()
+                            val fraction = dragAmount / size.height.toFloat()
+                            brightness = (brightness - fraction).coerceIn(0.01f, 1f)
+                            activity.applyWindowBrightness(brightness)
+                            showOverlay(true, brightness)
+                        }
+                    )
+                }
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .fillMaxWidth(0.3f)
+                .pointerInput(maxVolume) {
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { change, dragAmount ->
+                            change.consume()
+                            val fraction = dragAmount / size.height.toFloat()
+                            volume = (volume - fraction * maxVolume * 2.4f)
+                                .coerceIn(0f, maxVolume.toFloat())
+                            audioManager?.setStreamVolume(
+                                AudioManager.STREAM_MUSIC,
+                                volume.roundToInt(),
+                                0
+                            )
+                            showOverlay(false, volume / maxVolume.toFloat())
+                        }
+                    )
+                }
+        )
+
+        AnimatedVisibility(
+            visible = showGestureOverlay,
+            enter = fadeIn(tween(140)) + scaleIn(
+                initialScale = 0.9f,
+                animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f)
+            ),
+            exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.94f),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            GestureIndicator(
+                isBrightness = overlayIsBrightness,
+                value = overlayValue
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -178,4 +294,83 @@ private fun shareVideo(context: Context, video: VideoItem) {
     runCatching {
         context.startActivity(Intent.createChooser(intent, "Share video"))
     }
+}
+
+@Composable
+private fun GestureIndicator(
+    isBrightness: Boolean,
+    value: Float
+) {
+    val percentage = (value * 100f).roundToInt()
+    Box(
+        modifier = Modifier
+            .width(190.dp)
+            .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(20.dp))
+            .padding(horizontal = 18.dp, vertical = 14.dp)
+    ) {
+        Column {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(
+                    imageVector = if (isBrightness) {
+                        Icons.Outlined.BrightnessHigh
+                    } else {
+                        Icons.Outlined.VolumeUp
+                    },
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
+                )
+                Text(
+                    text = if (isBrightness) "Brightness" else "Volume",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = "$percentage%",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.72f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .background(Color.White.copy(alpha = 0.22f), RoundedCornerShape(2.dp))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(value)
+                        .fillMaxHeight()
+                        .background(Color.White, RoundedCornerShape(2.dp))
+                )
+            }
+        }
+    }
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
+}
+
+private fun Activity?.currentWindowBrightness(): Float {
+    val value = this?.window?.attributes?.screenBrightness ?: -1f
+    return if (value < 0f) 0.5f else value
+}
+
+private fun Activity?.applyWindowBrightness(value: Float) {
+    val window = this?.window ?: return
+    val attributes = window.attributes
+    attributes.screenBrightness = value.coerceIn(0.01f, 1f)
+    window.attributes = attributes
 }
