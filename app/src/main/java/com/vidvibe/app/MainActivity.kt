@@ -8,7 +8,8 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,6 +18,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -26,16 +28,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vidvibe.app.ui.VidVibeApp
 import com.vidvibe.app.ui.components.PermissionScreen
+import com.vidvibe.app.ui.screens.AppLockScreen
+import com.vidvibe.app.ui.screens.OnboardingScreen
 import com.vidvibe.app.ui.theme.VidVibeTheme
 import com.vidvibe.app.ui.viewmodel.MainViewModel
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val viewModel: MainViewModel by viewModels()
 
@@ -52,20 +57,23 @@ class MainActivity : ComponentActivity() {
         }
 
         enableEdgeToEdge(
-            statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
 
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
+            val settingsLoaded by viewModel.settingsLoaded.collectAsStateWithLifecycle()
             var permissionGranted by remember {
                 mutableStateOf(hasMediaPermission())
             }
             var permissionRequested by rememberSaveable { mutableStateOf(false) }
+            var onboardingComplete by rememberSaveable { mutableStateOf(false) }
+            var hasUnlocked by rememberSaveable { mutableStateOf(false) }
 
-            val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+            val permissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
-            ) { result ->
+            ) {
                 permissionGranted = hasMediaPermission()
             }
 
@@ -76,18 +84,36 @@ class MainActivity : ComponentActivity() {
 
             val lifecycleOwner = LocalLifecycleOwner.current
             val currentCheck by rememberUpdatedState(::hasMediaPermission)
+            val currentLockEnabled by rememberUpdatedState(settings.appLockEnabled)
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
-                    if (event == Lifecycle.Event.ON_RESUME) {
-                        permissionGranted = currentCheck()
+                    when (event) {
+                        Lifecycle.Event.ON_RESUME -> permissionGranted = currentCheck()
+                        Lifecycle.Event.ON_STOP -> {
+                            if (currentLockEnabled) hasUnlocked = false
+                        }
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
                 onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
             }
 
-            androidx.compose.runtime.LaunchedEffect(Unit) {
-                if (!permissionGranted && !permissionRequested) {
+            val showOnboarding = settingsLoaded &&
+                !settings.onboardingSeen &&
+                !onboardingComplete
+            val lockRequired = settingsLoaded &&
+                settings.appLockEnabled &&
+                !hasUnlocked
+            val appReady = settingsLoaded && !showOnboarding && !lockRequired
+
+            LaunchedEffect(settingsLoaded, settings.appLockEnabled) {
+                if (settingsLoaded && !settings.appLockEnabled) {
+                    hasUnlocked = true
+                }
+            }
+
+            LaunchedEffect(appReady) {
+                if (appReady && !permissionGranted && !permissionRequested) {
                     requestPermission()
                 }
             }
@@ -97,10 +123,18 @@ class MainActivity : ComponentActivity() {
                 fontScaleSp = settings.fontSizeSp
             ) {
                 Box(Modifier.fillMaxSize().background(Color(settings.backgroundColor))) {
-                    if (permissionGranted) {
-                        VidVibeApp(viewModel = viewModel)
-                    } else {
-                        PermissionScreen(
+                    when {
+                        !settingsLoaded -> Unit
+                        showOnboarding -> OnboardingScreen(
+                            onFinish = {
+                                onboardingComplete = true
+                                viewModel.setOnboardingSeen(true)
+                            }
+                        )
+                        lockRequired -> AppLockScreen(
+                            onUnlocked = { hasUnlocked = true }
+                        )
+                        !permissionGranted -> PermissionScreen(
                             onAllow = requestPermission,
                             onOpenSettings = {
                                 val intent = Intent(
@@ -110,6 +144,7 @@ class MainActivity : ComponentActivity() {
                                 startActivity(intent)
                             }
                         )
+                        else -> VidVibeApp(viewModel = viewModel)
                     }
                 }
             }

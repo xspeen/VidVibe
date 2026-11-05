@@ -15,14 +15,27 @@ There are no accounts, no ads, and no analytics. Your media stays on your phone.
 - Reads videos from the device through MediaStore.
 - Videos, Folders, and Playlists tabs, with horizontal swipe navigation.
 - Search, grid and list layouts, and shuffle.
-- Custom pull-to-refresh with a twelve-blade spinner that holds for seven seconds.
+- Custom pull-to-refresh with a twelve-blade spinner that holds for seven seconds,
+  then returns the list to its resting position automatically.
 - Long-press selection with a floating Share, Add to, and Delete menu.
 - Playlist creation, add-to-playlist, and playlist removal.
-- Video playback with Media3 ExoPlayer, plus left-side brightness and
-  right-side volume swipe gestures with an on-screen indicator.
+- Video playback with Media3 ExoPlayer. Swipe up or down on the left side for
+  brightness and on the right side for volume, with an on-screen indicator.
+- Double-tap the right side to seek forward and the left side to rewind, like
+  YouTube.
+- Previous and Next controls in the player, plus horizontal swipes and a
+  finished-video panel, so you can keep watching without returning to the
+  library.
 - Trash with Restore and Delete Permanently actions.
-- Permanent deletion through MediaStore, including the Android system
-  confirmation flow where the platform requires it.
+- Permanent deletion through MediaStore. Downloads made by VidVibe are owned by
+  the app, so they delete directly without an extra permission prompt; media
+  from other apps falls back to the Android confirmation flow only when the
+  platform requires it.
+- App lock using fingerprint, face, or any enrolled biometric, with a device
+  PIN, pattern, or password fallback. VidVibe asks for unlock on launch and when
+  it returns from the background.
+- A first-launch welcome tour with swipeable library, downloader, studio, and
+  privacy pages, a Skip action, and a Get started button.
 
 ### Downloader
 - Paste a public link and download a video into `Movies/VidVibe`.
@@ -31,14 +44,18 @@ There are no accounts, no ads, and no analytics. Your media stays on your phone.
 - Separate video and audio streams are combined on the device with
   `MediaExtractor` and `MediaMuxer`, so modern YouTube downloads keep both
   picture and sound without shipping FFmpeg.
-- Full-screen circular progress page with a live percentage.
+- Full-screen circular progress page with a live percentage, rotating glass ring,
+  ambient glow, and animated success state.
 - Success and error states with retry.
 - Wi-Fi-only mode.
 - Powered by yt-dlp running in an embedded Python runtime through Chaquopy.
 
 ### Me
 - Global font size slider from 12sp to 24sp.
-- Liquid-glass style navigation toggle.
+- Liquid-glass navigation toggle with an iPhone-launcher-style sliding glass
+  capsule, spring motion, glow, and swipe-across-tab switching.
+- App lock toggle with biometric and device-credential fallback.
+- Welcome tour replay.
 - Six app background colors.
 - Download settings, including Wi-Fi-only mode.
 - About, source code, and license pages.
@@ -188,6 +205,8 @@ app/src/main/python/
 - `READ_EXTERNAL_STORAGE` on older releases.
 - `WRITE_EXTERNAL_STORAGE` only on Android 9 and older, for gallery saves.
 - `INTERNET` and `ACCESS_NETWORK_STATE` for the downloader.
+- `USE_BIOMETRIC` and `USE_FINGERPRINT` for the optional app lock. Biometric data
+  stays in Android's secure hardware and is never read by VidVibe.
 
 VidVibe never uploads your library. The only outbound traffic is the download you
 explicitly start.

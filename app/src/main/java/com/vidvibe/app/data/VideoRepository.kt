@@ -176,6 +176,9 @@ class VideoRepository(private val context: Context) {
                 "${Environment.DIRECTORY_MOVIES}/VidVibe"
             )
             put(MediaStore.Video.Media.IS_PENDING, 1)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.OWNER_PACKAGE_NAME, context.packageName)
+            }
         }
 
         val uri = resolver.insert(collection, values)

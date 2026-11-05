@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,6 +50,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         started = SharingStarted.Eagerly,
         initialValue = AppSettings()
     )
+
+    val settingsLoaded: StateFlow<Boolean> = settingsStore.settings
+        .map { true }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = false
+        )
 
     val playlists: StateFlow<List<Playlist>> = playlistStore.playlists
     val trash: StateFlow<List<TrashedVideo>> = trashStore.trash
@@ -218,6 +227,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setWifiOnly(enabled: Boolean) {
         viewModelScope.launch { settingsStore.setWifiOnly(enabled) }
+    }
+
+    fun setAppLock(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setAppLock(enabled) }
+    }
+
+    fun setOnboardingSeen(seen: Boolean) {
+        viewModelScope.launch { settingsStore.setOnboardingSeen(seen) }
     }
 
     fun createPlaylist(name: String): Playlist? = playlistStore.createPlaylist(name)

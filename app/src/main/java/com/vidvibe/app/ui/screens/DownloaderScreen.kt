@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -441,8 +442,8 @@ fun DownloaderScreen(
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                text = "Downloads use progressive MP4 streams, so no " +
-                                    "extra converter is needed.",
+                                text = "Video and audio are combined on your device, so " +
+                                    "saved files play smoothly in any gallery app.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = VidVibeTextTertiary
                             )
@@ -768,12 +769,71 @@ private fun DownloadProgressPage(
         animationSpec = tween(480, easing = FastOutSlowInEasing),
         label = "download-progress"
     )
+    val ambient = rememberInfiniteTransition(label = "download-ambient")
+    val ambientShift by ambient.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(5200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "download-ambient-shift"
+    )
+    val spin by ambient.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(3600, easing = LinearEasing)
+        ),
+        label = "download-spin"
+    )
+    val pulse by ambient.animateFloat(
+        initialValue = 0.45f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(900, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "download-pulse"
+    )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(background)
     ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .offset(y = (-90).dp)
+                .size(320.dp)
+                .graphicsLayer { alpha = 0.20f + ambientShift * 0.16f }
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            VidVibeBlue.copy(alpha = 0.55f),
+                            Color.Transparent
+                        )
+                    ),
+                    CircleShape
+                )
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .offset(y = 90.dp)
+                .size(300.dp)
+                .graphicsLayer { alpha = 0.18f + (1f - ambientShift) * 0.14f }
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            VidVibeAccentRed.copy(alpha = 0.45f),
+                            Color.Transparent
+                        )
+                    ),
+                    CircleShape
+                )
+        )
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -790,6 +850,26 @@ private fun DownloadProgressPage(
                         modifier = Modifier.size(216.dp),
                         contentAlignment = Alignment.Center
                     ) {
+                        Canvas(
+                            Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { rotationZ = spin }
+                        ) {
+                            val center = Offset(size.width / 2f, size.height / 2f)
+                            val radius = (size.minDimension - 30.dp.toPx()) / 2f
+                            for (index in 0 until 40) {
+                                val angle = (index * 9f) * (Math.PI.toFloat() / 180f)
+                                val strength = 0.06f + (index % 10) * 0.012f
+                                drawCircle(
+                                    color = Color.White.copy(alpha = strength),
+                                    radius = if (index % 5 == 0) 2.1.dp.toPx() else 1.2.dp.toPx(),
+                                    center = Offset(
+                                        x = center.x + cos(angle) * radius,
+                                        y = center.y + sin(angle) * radius
+                                    )
+                                )
+                            }
+                        }
                         Canvas(Modifier.fillMaxSize()) {
                             val stroke = 11.dp.toPx()
                             val inset = stroke / 2f
@@ -828,12 +908,21 @@ private fun DownloadProgressPage(
                         }
                     }
                     Spacer(Modifier.height(28.dp))
-                    Text(
-                        text = state.status,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = VidVibeText,
-                        textAlign = TextAlign.Center
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .graphicsLayer { alpha = pulse }
+                                .background(VidVibeGreen, CircleShape)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = state.status,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = VidVibeText,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                     Spacer(Modifier.height(6.dp))
                     Text(
                         text = "${host.ifBlank { "Video" }} · ${quality}p",

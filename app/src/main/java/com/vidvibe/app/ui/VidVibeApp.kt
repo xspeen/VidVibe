@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -44,6 +45,7 @@ import com.vidvibe.app.ui.components.VidVibeToastHost
 import com.vidvibe.app.ui.screens.DownloaderScreen
 import com.vidvibe.app.ui.screens.LocalScreen
 import com.vidvibe.app.ui.screens.MeScreen
+import com.vidvibe.app.ui.screens.OnboardingScreen
 import com.vidvibe.app.ui.screens.TrashScreen
 import com.vidvibe.app.ui.screens.VideoPlayerScreen
 import com.vidvibe.app.ui.theme.LocalAppBackground
@@ -63,11 +65,15 @@ fun VidVibeApp(viewModel: MainViewModel) {
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var drawerOpen by remember { mutableStateOf(false) }
     var trashOpen by remember { mutableStateOf(false) }
-    var playerVideo by remember { mutableStateOf<VideoItem?>(null) }
+    var playerQueue by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
+    var playerIndex by remember { mutableIntStateOf(-1) }
+    var showTour by remember { mutableStateOf(false) }
     var selectionActive by remember { mutableStateOf(false) }
     var downloaderFullScreen by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf<String?>(null) }
+
+    val playerVideo = playerQueue.getOrNull(playerIndex)
 
     fun showToast(message: String) {
         toast = message
@@ -95,7 +101,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
         }
     }
 
-    BackHandler(enabled = selectedTab != 0 && playerVideo == null && !drawerOpen && !trashOpen) {
+    BackHandler(enabled = selectedTab != 0 && playerVideo == null && !drawerOpen && !trashOpen && !showTour) {
         selectedTab = 0
     }
 
@@ -103,7 +109,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
     val showBottomNav = !selectionActive &&
         playerVideo == null &&
         !downloaderFullScreen &&
-        !trashOpen
+        !trashOpen &&
+        !showTour
 
     var rootWidth by remember { mutableStateOf(0) }
     val drawerProgress by animateFloatAsState(
@@ -154,7 +161,10 @@ fun VidVibeApp(viewModel: MainViewModel) {
                         videos = videos,
                         isLoading = isLoading,
                         playlists = playlists,
-                        onOpenVideo = { playerVideo = it },
+                        onOpenVideo = { queue, index ->
+                            playerQueue = queue
+                            playerIndex = index
+                        },
                         onRefresh = viewModel::refresh,
                         onOpenDrawer = { drawerOpen = true },
                         onSelectionModeChanged = { selectionActive = it },
@@ -185,6 +195,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
                         onLiquidGlassChange = viewModel::setLiquidGlass,
                         onBackgroundChange = viewModel::setBackgroundColor,
                         onWifiOnlyChange = viewModel::setWifiOnly,
+                        onAppLockChange = viewModel::setAppLock,
+                        onReplayTour = { showTour = true },
                         showToast = { showToast(it) }
                     )
                 }
@@ -247,7 +259,24 @@ fun VidVibeApp(viewModel: MainViewModel) {
         playerVideo?.let { video ->
             VideoPlayerScreen(
                 video = video,
-                onBack = { playerVideo = null }
+                hasNext = playerIndex < playerQueue.lastIndex,
+                hasPrevious = playerIndex > 0,
+                onNext = {
+                    if (playerIndex < playerQueue.lastIndex) playerIndex += 1
+                },
+                onPrevious = {
+                    if (playerIndex > 0) playerIndex -= 1
+                },
+                onBack = {
+                    playerQueue = emptyList()
+                    playerIndex = -1
+                }
+            )
+        }
+
+        if (showTour) {
+            OnboardingScreen(
+                onFinish = { showTour = false }
             )
         }
     }

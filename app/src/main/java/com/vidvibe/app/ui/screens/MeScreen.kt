@@ -1,10 +1,13 @@
 package com.vidvibe.app.ui.screens
 
+import android.app.KeyguardManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
+import androidx.biometric.BiometricManager
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -35,10 +38,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Fingerprint
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
@@ -103,12 +108,44 @@ fun MeScreen(
     onLiquidGlassChange: (Boolean) -> Unit,
     onBackgroundChange: (Int) -> Unit,
     onWifiOnlyChange: (Boolean) -> Unit,
+    onAppLockChange: (Boolean) -> Unit,
+    onReplayTour: () -> Unit,
     showToast: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var showAbout by remember { mutableStateOf(false) }
     var showLicense by remember { mutableStateOf(false) }
     var showDownloadSettings by rememberSaveable { mutableStateOf(false) }
+
+    val lockAvailable = remember(context) {
+        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val deviceSecure = keyguard?.isDeviceSecure == true
+        val allowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK or
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        } else {
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.BIOMETRIC_WEAK
+        }
+        val biometrics = BiometricManager.from(context).canAuthenticate(allowed) ==
+            BiometricManager.BIOMETRIC_SUCCESS
+        biometrics || deviceSecure
+    }
+
+    val handleAppLockChange: (Boolean) -> Unit = { enabled ->
+        when {
+            !enabled -> {
+                onAppLockChange(false)
+                showToast("App lock turned off")
+            }
+            lockAvailable -> {
+                onAppLockChange(true)
+                showToast("App lock on. Unlock with biometrics or your device PIN.")
+            }
+            else -> showToast("Set a fingerprint, face, or screen lock in Android settings first.")
+        }
+    }
 
     BackHandler(enabled = showDownloadSettings) { showDownloadSettings = false }
 
@@ -133,6 +170,8 @@ fun MeScreen(
             onLiquidGlassChange = onLiquidGlassChange,
             onBackgroundChange = onBackgroundChange,
             onWifiOnlyChange = onWifiOnlyChange,
+            onAppLockChange = handleAppLockChange,
+            onReplayTour = onReplayTour,
             onOpenDownloadSettings = { showDownloadSettings = true },
             onOpenAbout = { showAbout = true },
             onOpenLicense = { showLicense = true },
@@ -189,6 +228,8 @@ private fun MeHome(
     onLiquidGlassChange: (Boolean) -> Unit,
     onBackgroundChange: (Int) -> Unit,
     onWifiOnlyChange: (Boolean) -> Unit,
+    onAppLockChange: (Boolean) -> Unit,
+    onReplayTour: () -> Unit,
     onOpenDownloadSettings: () -> Unit,
     onOpenAbout: () -> Unit,
     onOpenLicense: () -> Unit,
@@ -382,6 +423,52 @@ private fun MeHome(
                                 }
                             }
                         }
+                    }
+                }
+
+                Spacer(Modifier.height(22.dp))
+                SectionLabel("Privacy & security")
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 720.dp),
+                    color = VidVibeSurface2,
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
+                ) {
+                    Column {
+                        SettingRow(
+                            icon = Icons.Outlined.Fingerprint,
+                            title = "App lock",
+                            subtitle = if (settings.appLockEnabled) {
+                                "Fingerprint, face, or device PIN required to open"
+                            } else {
+                                "Protect VidVibe with your biometrics"
+                            },
+                            trailing = {
+                                Switch(
+                                    checked = settings.appLockEnabled,
+                                    onCheckedChange = onAppLockChange,
+                                    colors = vidVibeSwitchColors()
+                                )
+                            }
+                        )
+                        HorizontalDivider(color = VidVibeBorder)
+                        SettingRow(
+                            icon = Icons.Outlined.AutoAwesome,
+                            title = "Welcome tour",
+                            subtitle = "Replay the introduction",
+                            onClick = onReplayTour,
+                            trailing = {
+                                Icon(
+                                    imageVector = Icons.Outlined.ChevronRight,
+                                    contentDescription = null,
+                                    tint = VidVibeTextTertiary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        )
                     }
                 }
 

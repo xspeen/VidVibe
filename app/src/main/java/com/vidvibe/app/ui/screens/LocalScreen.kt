@@ -113,6 +113,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -143,7 +144,7 @@ fun LocalScreen(
     videos: List<VideoItem>,
     isLoading: Boolean,
     playlists: List<Playlist>,
-    onOpenVideo: (VideoItem) -> Unit,
+    onOpenVideo: (List<VideoItem>, Int) -> Unit,
     onRefresh: () -> Unit,
     onOpenDrawer: () -> Unit,
     onSelectionModeChanged: (Boolean) -> Unit,
@@ -378,7 +379,12 @@ fun LocalScreen(
                                 playlistFilterId = null
                             },
                             onClick = { video ->
-                                if (selectionMode) toggleSelection(video.id) else onOpenVideo(video)
+                                if (selectionMode) {
+                                    toggleSelection(video.id)
+                                } else {
+                                    val index = visibleVideos.indexOfFirst { it.id == video.id }
+                                    onOpenVideo(visibleVideos, index.coerceAtLeast(0))
+                                }
                             },
                             onLongClick = { video -> enterSelection(video.id) },
                             onMoreClick = { video -> enterSelection(video.id) }
@@ -799,7 +805,8 @@ private fun VideosPane(
             filterLabel = filterLabel,
             onClearFilter = onClearFilter,
             onClick = onClick,
-            onLongClick = onLongClick
+            onLongClick = onLongClick,
+            onMoreClick = onMoreClick
         )
     } else {
         VideosList(
@@ -876,7 +883,8 @@ private fun VideosGrid(
     filterLabel: String?,
     onClearFilter: () -> Unit,
     onClick: (VideoItem) -> Unit,
-    onLongClick: (VideoItem) -> Unit
+    onLongClick: (VideoItem) -> Unit,
+    onMoreClick: (VideoItem) -> Unit
 ) {
     val grouped = remember(videos) { videos.groupBy { it.dateLabel } }
     Box(Modifier.fillMaxSize()) {
@@ -900,7 +908,11 @@ private fun VideosGrid(
                     span = { GridItemSpan(maxLineSpan) },
                     key = "grid-date-$date"
                 ) {
-                    DateHeader(date, modifier = Modifier.padding(start = 4.dp))
+                    DateHeader(
+                        date,
+                        startPadding = 4.dp,
+                        endPadding = 4.dp
+                    )
                 }
                 items(
                     items = dateVideos,
@@ -912,6 +924,7 @@ private fun VideosGrid(
                         selected = video.id in selectedIds,
                         onClick = { onClick(video) },
                         onLongClick = { onLongClick(video) },
+                        onMoreClick = { onMoreClick(video) },
                         modifier = Modifier.animateItem()
                     )
                 }
@@ -923,13 +936,15 @@ private fun VideosGrid(
 @Composable
 private fun DateHeader(
     date: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    startPadding: Dp = 16.dp,
+    endPadding: Dp = 16.dp
 ) {
     Text(
         text = date,
         style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
         color = VidVibeTextTertiary,
-        modifier = modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 4.dp)
+        modifier = modifier.padding(start = startPadding, end = endPadding, top = 10.dp, bottom = 4.dp)
     )
 }
 
@@ -1051,6 +1066,7 @@ private fun VideoGridCard(
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onMoreClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -1109,6 +1125,24 @@ private fun VideoGridCard(
                         .align(Alignment.TopStart)
                         .padding(6.dp)
                 )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(5.dp)
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.62f))
+                        .clickable(onClick = onMoreClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.MoreVert,
+                        contentDescription = "Select ${video.displayName}",
+                        tint = Color.White,
+                        modifier = Modifier.size(17.dp)
+                    )
+                }
             }
         }
         Spacer(Modifier.height(7.dp))

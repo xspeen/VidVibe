@@ -5,7 +5,6 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.media.AudioManager
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
@@ -16,6 +15,8 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,15 +31,24 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.BrightnessHigh
+import androidx.compose.material.icons.outlined.FastForward
+import androidx.compose.material.icons.outlined.FastRewind
+import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material.icons.outlined.VolumeUp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -58,6 +68,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -65,6 +76,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.vidvibe.app.data.VideoItem
@@ -74,12 +86,18 @@ import kotlin.math.roundToInt
 @Composable
 fun VideoPlayerScreen(
     video: VideoItem,
+    hasNext: Boolean,
+    hasPrevious: Boolean,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnBack by rememberUpdatedState(onBack)
+    val currentOnNext by rememberUpdatedState(onNext)
+    val currentOnPrevious by rememberUpdatedState(onPrevious)
 
     val activity = remember(context) { context.findActivity() }
     val audioManager = remember(context) {
@@ -101,6 +119,10 @@ fun VideoPlayerScreen(
     var overlayValue by remember { mutableFloatStateOf(0f) }
     var gestureTick by remember { mutableIntStateOf(0) }
 
+    var ended by remember(video.uri) { mutableStateOf(false) }
+    var seekHintSeconds by remember { mutableStateOf<Int?>(null) }
+    var seekTick by remember { mutableIntStateOf(0) }
+
     fun showOverlay(isBrightness: Boolean, value: Float) {
         overlayIsBrightness = isBrightness
         overlayValue = value.coerceIn(0f, 1f)
@@ -115,6 +137,13 @@ fun VideoPlayerScreen(
         }
     }
 
+    LaunchedEffect(seekTick) {
+        if (seekHintSeconds != null) {
+            delay(720)
+            seekHintSeconds = null
+        }
+    }
+
     val exoPlayer = remember(video.uri) {
         ExoPlayer.Builder(context).build().apply {
             setMediaItem(MediaItem.fromUri(video.uri))
@@ -123,8 +152,34 @@ fun VideoPlayerScreen(
         }
     }
 
+    fun seekBy(seconds: Int) {
+        val duration = exoPlayer.duration.takeIf { it > 0L } ?: Long.MAX_VALUE
+        val target = (exoPlayer.currentPosition + seconds * 1000L)
+            .coerceIn(0L, duration)
+        exoPlayer.seekTo(target)
+        seekHintSeconds = seconds
+        seekTick++
+    }
+
+    fun replay() {
+        exoPlayer.seekTo(0L)
+        exoPlayer.play()
+        ended = false
+    }
+
     DisposableEffect(exoPlayer) {
-        onDispose { exoPlayer.release() }
+        val listener = object : Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_ENDED) {
+                    ended = true
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
     }
 
     DisposableEffect(lifecycleOwner, exoPlayer) {
@@ -158,16 +213,37 @@ fun VideoPlayerScreen(
                     setKeepContentOnPlayerReset(true)
                 }
             },
+            update = { it.player = exoPlayer },
             modifier = Modifier.fillMaxSize()
         )
 
-        // Left third adjusts brightness, right third adjusts volume. The
-        // middle stays free for the player controls.
+        // Left third: swipe up/down for brightness, double-tap to rewind.
+        // Right third: swipe up/down for volume, double-tap to fast-forward.
+        // Horizontal swipes on either side move through the queue.
         Box(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .fillMaxHeight()
-                .fillMaxWidth(0.3f)
+                .fillMaxWidth(0.32f)
+                .pointerInput(hasNext, hasPrevious) {
+                    var dragTotal = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragTotal = 0f },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragTotal += dragAmount
+                        },
+                        onDragEnd = {
+                            if (dragTotal <= -90f && hasNext) currentOnNext()
+                            if (dragTotal >= 90f && hasPrevious) currentOnPrevious()
+                            dragTotal = 0f
+                        },
+                        onDragCancel = { dragTotal = 0f }
+                    )
+                }
+                .pointerInput(exoPlayer) {
+                    detectTapGestures(onDoubleTap = { seekBy(-10) })
+                }
                 .pointerInput(Unit) {
                     detectVerticalDragGestures(
                         onVerticalDrag = { change, dragAmount ->
@@ -185,7 +261,26 @@ fun VideoPlayerScreen(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .fillMaxWidth(0.3f)
+                .fillMaxWidth(0.32f)
+                .pointerInput(hasNext, hasPrevious) {
+                    var dragTotal = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragTotal = 0f },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragTotal += dragAmount
+                        },
+                        onDragEnd = {
+                            if (dragTotal <= -90f && hasNext) currentOnNext()
+                            if (dragTotal >= 90f && hasPrevious) currentOnPrevious()
+                            dragTotal = 0f
+                        },
+                        onDragCancel = { dragTotal = 0f }
+                    )
+                }
+                .pointerInput(exoPlayer) {
+                    detectTapGestures(onDoubleTap = { seekBy(10) })
+                }
                 .pointerInput(maxVolume) {
                     detectVerticalDragGestures(
                         onVerticalDrag = { change, dragAmount ->
@@ -217,6 +312,126 @@ fun VideoPlayerScreen(
                 isBrightness = overlayIsBrightness,
                 value = overlayValue
             )
+        }
+
+        AnimatedVisibility(
+            visible = seekHintSeconds != null,
+            enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.85f),
+            exit = fadeOut(tween(160)) + scaleOut(targetScale = 0.9f),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            SeekIndicator(seconds = seekHintSeconds ?: 0)
+        }
+
+        AnimatedVisibility(
+            visible = ended,
+            enter = fadeIn(tween(220)),
+            exit = fadeOut(tween(180)),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.62f))
+                    .pointerInput(ended, hasNext, hasPrevious) {
+                        var dragTotal = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { dragTotal = 0f },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                dragTotal += dragAmount
+                            },
+                            onDragEnd = {
+                                if (dragTotal <= -90f && hasNext) currentOnNext()
+                                if (dragTotal >= 90f && hasPrevious) currentOnPrevious()
+                                dragTotal = 0f
+                            },
+                            onDragCancel = { dragTotal = 0f }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .padding(horizontal = 26.dp)
+                        .fillMaxWidth()
+                        .widthIn(max = 440.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Finished",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.6f)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = video.displayName,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = when {
+                            hasNext -> "Swipe left or tap Next for the next video"
+                            hasPrevious -> "Swipe right or tap Previous to go back"
+                            else -> "That was the last video in this list"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = Color.White.copy(alpha = 0.62f),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(22.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(
+                            onClick = { currentOnPrevious() },
+                            enabled = hasPrevious,
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color.White.copy(alpha = 0.28f)
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White,
+                                disabledContentColor = Color.White.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.SkipPrevious,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Previous")
+                        }
+                        Button(
+                            onClick = {
+                                if (hasNext) currentOnNext() else replay()
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.White,
+                                contentColor = Color.Black
+                            )
+                        ) {
+                            Icon(
+                                imageVector = if (hasNext) {
+                                    Icons.Outlined.SkipNext
+                                } else {
+                                    Icons.Outlined.Replay
+                                },
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (hasNext) "Next" else "Replay")
+                        }
+                    }
+                }
+            }
         }
 
         Column(
@@ -264,6 +479,20 @@ fun VideoPlayerScreen(
                         color = Color.White.copy(alpha = 0.6f)
                     )
                 }
+                PlayerNavButton(
+                    icon = Icons.Outlined.SkipPrevious,
+                    description = "Previous video",
+                    enabled = hasPrevious,
+                    onClick = { currentOnPrevious() }
+                )
+                Spacer(Modifier.width(6.dp))
+                PlayerNavButton(
+                    icon = Icons.Outlined.SkipNext,
+                    description = "Next video",
+                    enabled = hasNext,
+                    onClick = { currentOnNext() }
+                )
+                Spacer(Modifier.width(6.dp))
                 Box(
                     modifier = Modifier
                         .size(40.dp)
@@ -280,6 +509,62 @@ fun VideoPlayerScreen(
                 }
             }
             Spacer(Modifier.height(2.dp))
+        }
+    }
+}
+
+@Composable
+private fun PlayerNavButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .background(
+                Color.Black.copy(alpha = if (enabled) 0.35f else 0.16f),
+                CircleShape
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            tint = Color.White.copy(alpha = if (enabled) 1f else 0.32f),
+            modifier = Modifier.size(22.dp)
+        )
+    }
+}
+
+@Composable
+private fun SeekIndicator(seconds: Int) {
+    val forward = seconds >= 0
+    Box(
+        modifier = Modifier
+            .background(Color.Black.copy(alpha = 0.78f), RoundedCornerShape(22.dp))
+            .padding(horizontal = 22.dp, vertical = 16.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = if (forward) {
+                    Icons.Outlined.FastForward
+                } else {
+                    Icons.Outlined.FastRewind
+                },
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = "${if (forward) "+" else ""}${seconds}s",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

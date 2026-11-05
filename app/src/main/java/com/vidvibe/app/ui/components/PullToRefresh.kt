@@ -10,8 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,8 +30,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 @Composable
@@ -50,7 +52,12 @@ fun PullToRefresh(
     val pullOffset = remember { Animatable(0f) }
     val refreshing = remember { mutableStateOf(false) }
     val currentOnRefresh = rememberUpdatedState(onRefresh)
-    val currentRefreshing = rememberUpdatedState(refreshing.value)
+
+    DisposableEffect(Unit) {
+        onDispose {
+            refreshing.value = false
+        }
+    }
 
     fun startRefresh() {
         if (refreshing.value) return
@@ -63,13 +70,16 @@ fun PullToRefresh(
                 )
                 currentOnRefresh.value()
                 // Hold the spinner for seven seconds, then always return the
-                // list to its resting position even if the scan is cancelled.
+                // list to its resting position even if the screen is left or
+                // the scan is cancelled part-way through.
                 delay(7000)
             } finally {
-                pullOffset.animateTo(
-                    0f,
-                    animationSpec = tween(280, easing = FastOutSlowInEasing)
-                )
+                withContext(NonCancellable) {
+                    pullOffset.animateTo(
+                        0f,
+                        animationSpec = tween(320, easing = FastOutSlowInEasing)
+                    )
+                }
                 refreshing.value = false
             }
         }
@@ -96,7 +106,7 @@ fun PullToRefresh(
                 available: Offset,
                 source: NestedScrollSource
             ): Offset {
-                if (available.y > 0f && !currentRefreshing.value && pullOffset.value < maxPullPx) {
+                if (available.y > 0f && !refreshing.value && pullOffset.value < maxPullPx) {
                     val newValue = (pullOffset.value + available.y * 0.45f)
                         .coerceIn(0f, maxPullPx)
                     scope.launch { pullOffset.snapTo(newValue) }
