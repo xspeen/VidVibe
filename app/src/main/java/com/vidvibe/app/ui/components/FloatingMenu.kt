@@ -79,6 +79,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vidvibe.app.ui.theme.LocalAnimationDuration
+import com.vidvibe.app.ui.theme.LocalAppTextColor
+import com.vidvibe.app.ui.theme.LocalMenuPalette
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -123,7 +126,7 @@ class FloatingMenuState {
         private set
     var color by mutableStateOf(FloatingMenuColor.Delete)
         private set
-    var slideLabel by mutableStateOf("Slide to Confirm")
+    var slideLabel by mutableStateOf("Swipe to Confirm")
         private set
     var progress by mutableFloatStateOf(0f)
     var success by mutableStateOf(false)
@@ -204,6 +207,8 @@ fun VidVibeFloatingMenu(
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
+    val palette = LocalMenuPalette.current
+    val animationMs = LocalAnimationDuration.current
     val reveal = remember { Animatable(0f) }
     val menuVisible = state.panel != FloatingPanel.Hidden
 
@@ -211,7 +216,7 @@ fun VidVibeFloatingMenu(
         reveal.animateTo(
             targetValue = if (menuVisible) 1f else 0f,
             animationSpec = tween(
-                durationMillis = 400,
+                durationMillis = animationMs,
                 easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
             )
         )
@@ -283,14 +288,20 @@ fun VidVibeFloatingMenu(
                     .clip(RoundedCornerShape(menuRadius))
                     .background(
                         Brush.verticalGradient(
-                            listOf(MenuGlass, MenuGlassBottom)
+                            listOf(
+                                palette.background,
+                                palette.background.copy(
+                                    alpha = (palette.background.alpha * 0.85f)
+                                        .coerceIn(0f, 1f)
+                                )
+                            )
                         )
                     )
                     .border(
                         width = 1.dp,
                         brush = Brush.verticalGradient(
                             listOf(
-                                Color.White.copy(alpha = 0.25f),
+                                palette.highlight,
                                 Color.White.copy(alpha = 0.10f),
                                 Color.White.copy(alpha = 0.05f)
                             )
@@ -326,7 +337,7 @@ fun VidVibeFloatingMenu(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 74.dp)
+                .padding(bottom = 124.dp)
         )
     }
 }
@@ -433,7 +444,7 @@ private fun MenuAction(
             text = label,
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
-            color = MenuText2,
+            color = LocalAppTextColor.current,
             maxLines = 1
         )
     }
@@ -463,7 +474,7 @@ private fun QualityPanel(onQualityPicked: (Int) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "SELECT QUALITY",
+            text = "Select Video Quality",
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             color = MenuText2,
@@ -529,7 +540,7 @@ private fun QualityItem(
             text = choice.title,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            color = if (pressed) Color.White else MenuText,
+            color = if (pressed) Color.White else LocalAppTextColor.current,
             maxLines = 1
         )
         Text(
@@ -756,11 +767,16 @@ private fun SuccessOverlay(
     val burst = remember { Animatable(0f) }
 
     val sparkles = remember {
-        val colors = listOf(Color.White, MenuGreen, Color(0xFFA7F3C5))
-        List(8) { index ->
+        val colors = listOf(
+            Color.White,
+            MenuGreen,
+            Color(0xFFA7F3C5),
+            Color(0xFFFFD700)
+        )
+        List(12) { index ->
             Sparkle(
-                angle = (index / 8f) * (2f * PI.toFloat()),
-                distance = 40f + Random.nextFloat() * 20f,
+                angle = (index / 12f) * (2f * PI.toFloat()),
+                distance = 40f + Random.nextFloat() * 30f,
                 color = colors[index % colors.size]
             )
         }
@@ -788,17 +804,17 @@ private fun SuccessOverlay(
                 circle.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
-                        durationMillis = 600,
+                        durationMillis = 800,
                         easing = CubicBezierEasing(0.65f, 0f, 0.45f, 1f)
                     )
                 )
             }
             launch {
-                delay(600)
+                delay(800)
                 check.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
-                        durationMillis = 400,
+                        durationMillis = 600,
                         easing = CubicBezierEasing(0.65f, 0f, 0.45f, 1f)
                     )
                 )
@@ -808,7 +824,7 @@ private fun SuccessOverlay(
                 burst.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
-                        durationMillis = 800,
+                        durationMillis = 1000,
                         easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
                     )
                 )

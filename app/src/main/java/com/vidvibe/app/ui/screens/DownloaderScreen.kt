@@ -126,6 +126,10 @@ fun DownloaderScreen(
 
     fun beginDownload() {
         if (link.isBlank()) {
+            val pasted = clipboardText()
+            if (pasted.isNotBlank()) link = pasted
+        }
+        if (link.isBlank()) {
             showToast("Paste a video link first")
             return
         }
@@ -182,7 +186,7 @@ fun DownloaderScreen(
                     .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
                 Text(
-                    text = "Paste Link",
+                    text = "Media URL",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFFA0A0A8),
@@ -193,15 +197,7 @@ fun DownloaderScreen(
                 DownloadLinkInput(
                     link = link,
                     onLinkChange = { link = it.trimStart() },
-                    onPaste = {
-                        val pasted = clipboardText()
-                        if (pasted.isNotBlank()) {
-                            link = pasted
-                        } else if (link.isBlank()) {
-                            showToast("Clipboard is empty")
-                        }
-                        openQuality()
-                    },
+                    onFetch = { beginDownload() },
                     onGo = { beginDownload() }
                 )
                 Spacer(Modifier.height(120.dp))
@@ -220,7 +216,7 @@ fun DownloaderScreen(
                 selectedQuality = height
                 menu.openSlide(
                     color = FloatingMenuColor.Download,
-                    label = "Slide to Download ${height}p",
+                    label = "Swipe to Download ${height}p",
                     autoProgress = false
                 )
             },
@@ -307,7 +303,7 @@ private fun DownloadHero() {
                 )
             }
             Text(
-                text = "Paste a link to download",
+                text = "Paste a link to save",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = Color.White,
@@ -324,7 +320,7 @@ private fun DownloadHero() {
 private fun DownloadLinkInput(
     link: String,
     onLinkChange: (String) -> Unit,
-    onPaste: () -> Unit,
+    onFetch: () -> Unit,
     onGo: () -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -433,12 +429,12 @@ private fun DownloadLinkInput(
                 .height(36.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Color.White)
-                .clickable(onClick = onPaste)
+                .clickable(onClick = onFetch)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "Paste",
+                text = "Fetch",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black

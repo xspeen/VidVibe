@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.Density
 
 val LocalAppBackground = staticCompositionLocalOf { VidVibeBackground }
@@ -41,6 +42,13 @@ private val VidVibeColors = darkColorScheme(
 fun VidVibeTheme(
     background: Color = VidVibeBackground,
     fontScaleSp: Float = 16f,
+    fontFamily: FontFamily = FontFamily.SansSerif,
+    textColor: Color = VidVibeText,
+    animationDurationMs: Int = 400,
+    menuPalette: MenuPalette = MenuPalette(
+        MenuGlass.Default.background,
+        MenuGlass.Default.highlight
+    ),
     content: @Composable () -> Unit
 ) {
     @Suppress("unused")
@@ -50,11 +58,19 @@ fun VidVibeTheme(
 
     CompositionLocalProvider(
         LocalDensity provides Density(density = density.density, fontScale = fontScale),
-        LocalAppBackground provides background
+        LocalAppBackground provides background,
+        LocalAppTextColor provides textColor,
+        LocalAppFontFamily provides fontFamily,
+        LocalAnimationDuration provides animationDurationMs,
+        LocalMenuPalette provides menuPalette
     ) {
         MaterialTheme(
-            colorScheme = VidVibeColors.copy(background = background),
-            typography = VidVibeTypography,
+            colorScheme = VidVibeColors.copy(
+                background = background,
+                onBackground = textColor,
+                onSurface = textColor
+            ),
+            typography = vidVibeTypography(fontFamily),
             content = content
         )
     }

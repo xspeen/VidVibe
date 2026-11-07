@@ -60,6 +60,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
     var showTour by remember { mutableStateOf(false) }
     var selectionActive by remember { mutableStateOf(false) }
     var downloaderFullScreen by remember { mutableStateOf(false) }
+    var profileSubPage by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf<String?>(null) }
 
@@ -91,8 +92,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
 
     val appBackground = LocalAppBackground.current
     val navVisible = playerVideo == null && !showTour
-    val navHidden = selectionActive || downloaderFullScreen
-    val navHideFraction = if (selectionActive) 2f else 1.5f
+    val navHidden = selectionActive || downloaderFullScreen || profileSubPage
+    val navHideFraction = if (selectionActive || profileSubPage) 2f else 1.5f
 
     Box(
         modifier = Modifier
@@ -151,15 +152,18 @@ fun VidVibeApp(viewModel: MainViewModel) {
 
             else -> MeScreen(
                 settings = settings,
-                videoCount = videos.size,
-                playlistCount = playlists.size,
                 librarySizeLabel = formatFileSize(videos.sumOf { it.sizeBytes }),
-                onFontSizeChange = viewModel::setFontSize,
-                onLiquidGlassChange = viewModel::setLiquidGlass,
-                onBackgroundChange = viewModel::setBackgroundColor,
-                onWifiOnlyChange = viewModel::setWifiOnly,
-                onAppLockChange = viewModel::setAppLock,
-                onReplayTour = { showTour = true },
+                onApplyCustomization = { selection ->
+                    viewModel.setCustomization(
+                        animationStyle = selection.animationStyle.key,
+                        appFont = selection.appFont.key,
+                        backgroundLook = selection.backgroundLook.key,
+                        textColor = selection.textColor.key,
+                        glassColor = selection.glassColor.key,
+                        appTheme = selection.appTheme.key
+                    )
+                },
+                onSubPageChanged = { profileSubPage = it },
                 showToast = { showToast(it) }
             )
         }

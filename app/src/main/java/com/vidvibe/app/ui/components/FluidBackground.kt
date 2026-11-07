@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import com.vidvibe.app.ui.theme.LocalAppBackground
 
 /**
  * The rotating conic wash plus the two radial glows used behind the
@@ -26,6 +27,17 @@ import androidx.compose.ui.unit.dp
  */
 @Composable
 fun FluidBackground(modifier: Modifier = Modifier) {
+    val base = LocalAppBackground.current
+
+    if (base == Color.Black) {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(Color.Black)
+        )
+        return
+    }
+
     val transition = rememberInfiniteTransition(label = "fluid-background")
     val angle by transition.animateFloat(
         initialValue = 0f,
@@ -36,11 +48,12 @@ fun FluidBackground(modifier: Modifier = Modifier) {
         ),
         label = "fluid-angle"
     )
+    val tint = base.copy(alpha = 0.55f)
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0A0C))
+            .background(base)
     ) {
         Box(
             modifier = Modifier
@@ -54,11 +67,11 @@ fun FluidBackground(modifier: Modifier = Modifier) {
                 .background(
                     Brush.sweepGradient(
                         listOf(
-                            Color(0xFF0A0A0C),
-                            Color(0xFF111116),
-                            Color(0xFF0A0A0C),
-                            Color(0xFF0A152A),
-                            Color(0xFF0A0A0C)
+                            base,
+                            tint,
+                            base,
+                            tint,
+                            base
                         )
                     )
                 )

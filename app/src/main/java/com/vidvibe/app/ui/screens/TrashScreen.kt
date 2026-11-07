@@ -71,6 +71,7 @@ import com.vidvibe.app.ui.components.FloatingMenuState
 import com.vidvibe.app.ui.components.FloatingPanel
 import com.vidvibe.app.ui.components.VidVibeFloatingMenu
 import com.vidvibe.app.ui.theme.LocalAppBackground
+import com.vidvibe.app.ui.theme.LocalAppTextColor
 import com.vidvibe.app.ui.theme.VidVibeBorder
 import com.vidvibe.app.ui.theme.VidVibeGreen
 import com.vidvibe.app.ui.theme.VidVibeRedSoft
@@ -205,67 +206,81 @@ fun TrashScreen(
             .background(background)
     ) {
         Column(Modifier.fillMaxSize()) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
-                    .clip(
-                        RoundedCornerShape(
-                            bottomStart = 40.dp,
-                            bottomEnd = 40.dp
-                        )
-                    )
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xE61C1C21), Color(0xF20A0A0C))
-                        )
-                    )
-                    .border(
-                        1.dp,
-                        Color.White.copy(alpha = 0.10f),
-                        RoundedCornerShape(
-                            bottomStart = 40.dp,
-                            bottomEnd = 40.dp
-                        )
-                    )
-                    .padding(horizontal = 20.dp, vertical = 24.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(184.dp)
+                        .clip(
+                            RoundedCornerShape(
+                                bottomStart = 40.dp,
+                                bottomEnd = 40.dp
+                            )
+                        )
+                ) {
+                    AsyncImage(
+                        model = "https://iili.io/nDKt2KN.jpg",
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.matchParentSize()
+                    )
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
+                            .matchParentSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color(0x660A0A0C), Color(0xD90A0A0C))
+                                )
+                            )
+                    )
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(top = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.PlayArrow,
-                            contentDescription = null,
-                            tint = Color.Black,
-                            modifier = Modifier.size(16.dp)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.PlayArrow,
+                                    contentDescription = null,
+                                    tint = Color.Black,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "VidVibe",
+                                fontFamily = FontFamily.Serif,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = LocalAppTextColor.current,
+                                maxLines = 1
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Recently Deleted",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                            color = LocalAppTextColor.current,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = "VidVibe",
-                        fontFamily = FontFamily.Serif,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = VidVibeText,
-                        maxLines = 1
-                    )
                 }
-
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = "Trash",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    color = VidVibeText,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
 
             if (items.isEmpty()) {
@@ -306,11 +321,11 @@ fun TrashScreen(
             onDelete = {},
             onRestore = {
                 pendingAction = TrashAction.Restore
-                menu.openSlide(FloatingMenuColor.Restore, "Slide to Restore")
+                menu.openSlide(FloatingMenuColor.Restore, "Swipe to Restore")
             },
             onDeletePermanently = {
                 pendingAction = TrashAction.Delete
-                menu.openSlide(FloatingMenuColor.Delete, "Slide to Delete")
+                menu.openSlide(FloatingMenuColor.Delete, "Swipe to Delete")
             },
             onCancel = { clearSelection() },
             onQualityPicked = {},
@@ -421,7 +436,7 @@ private fun TrashRow(
                 text = item.displayName,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = VidVibeText,
+                color = LocalAppTextColor.current,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

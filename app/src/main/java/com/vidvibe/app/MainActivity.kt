@@ -26,7 +26,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
@@ -37,7 +36,15 @@ import com.vidvibe.app.ui.VidVibeApp
 import com.vidvibe.app.ui.components.PermissionScreen
 import com.vidvibe.app.ui.screens.AppLockScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
+import com.vidvibe.app.ui.theme.AnimationStyle
+import com.vidvibe.app.ui.theme.AppFont
+import com.vidvibe.app.ui.theme.AppThemeMode
+import com.vidvibe.app.ui.theme.BackgroundLook
+import com.vidvibe.app.ui.theme.MenuGlass
+import com.vidvibe.app.ui.theme.MenuPalette
+import com.vidvibe.app.ui.theme.TextTone
 import com.vidvibe.app.ui.theme.VidVibeTheme
+import com.vidvibe.app.ui.theme.backgroundFor
 import com.vidvibe.app.ui.viewmodel.MainViewModel
 
 class MainActivity : FragmentActivity() {
@@ -119,11 +126,23 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
+            val animationStyle = AnimationStyle.from(settings.animationStyle)
+            val appFont = AppFont.from(settings.appFont)
+            val backgroundLook = BackgroundLook.from(settings.backgroundLook)
+            val textTone = TextTone.from(settings.textColor)
+            val menuGlass = MenuGlass.from(settings.glassColor)
+            val appTheme = AppThemeMode.from(settings.appTheme)
+            val appBackground = backgroundFor(backgroundLook, appTheme)
+
             VidVibeTheme(
-                background = Color(settings.backgroundColor),
-                fontScaleSp = settings.fontSizeSp
+                background = appBackground,
+                fontScaleSp = settings.fontSizeSp,
+                fontFamily = appFont.family,
+                textColor = textTone.color,
+                animationDurationMs = animationStyle.durationMs,
+                menuPalette = MenuPalette(menuGlass.background, menuGlass.highlight)
             ) {
-                Box(Modifier.fillMaxSize().background(Color(settings.backgroundColor))) {
+                Box(Modifier.fillMaxSize().background(appBackground)) {
                     when {
                         !settingsLoaded -> Unit
                         showOnboarding -> OnboardingScreen(

@@ -1,37 +1,43 @@
 package com.vidvibe.app.ui.screens
 
-import android.app.KeyguardManager
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
+import android.os.Environment
+import android.os.StatFs
 import androidx.activity.compose.BackHandler
-import androidx.biometric.BiometricManager
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.Image
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,207 +46,149 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.Code
-import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Fingerprint
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.VideoLibrary
-import androidx.compose.material.icons.outlined.Wifi
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vidvibe.app.BuildConfig
-import com.vidvibe.app.R
 import com.vidvibe.app.data.AppSettings
-import com.vidvibe.app.ui.components.AboutVidVibeDialog
-import com.vidvibe.app.ui.components.RoundIconButton
-import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
-import com.vidvibe.app.ui.theme.BackgroundOptions
+import com.vidvibe.app.data.formatFileSize
+import com.vidvibe.app.ui.theme.AnimationStyle
+import com.vidvibe.app.ui.theme.AppFont
+import com.vidvibe.app.ui.theme.AppThemeMode
+import com.vidvibe.app.ui.theme.BackgroundLook
+import com.vidvibe.app.ui.theme.CustomizationSelection
 import com.vidvibe.app.ui.theme.LocalAppBackground
-import com.vidvibe.app.ui.theme.VidVibeAccentRed
-import com.vidvibe.app.ui.theme.VidVibeBorder
-import com.vidvibe.app.ui.theme.VidVibeRed
-import com.vidvibe.app.ui.theme.VidVibeSelectionBlue
-import com.vidvibe.app.ui.theme.VidVibeSurface2
-import com.vidvibe.app.ui.theme.VidVibeSurface3
-import com.vidvibe.app.ui.theme.VidVibeText
-import com.vidvibe.app.ui.theme.VidVibeTextSecondary
-import com.vidvibe.app.ui.theme.VidVibeTextTertiary
+import com.vidvibe.app.ui.theme.LocalAppTextColor
+import com.vidvibe.app.ui.theme.MenuGlass
+import com.vidvibe.app.ui.theme.TextTone
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.random.Random
+
+private val ProfileSurface = Color(0xFF1C1C21)
+private val ProfileBorder = Color.White.copy(alpha = 0.08f)
+private val ProfileText2 = Color(0xFFA0A0A8)
+private val ProfileText3 = Color(0xFF6B6B75)
+private val ProfileBlue = Color(0xFF4E9BFF)
+private val ProfileGreen = Color(0xFF30D158)
+private val ProfileGold = Color(0xFFFFD700)
+
+private enum class ProfilePage {
+    Home,
+    History,
+    Settings
+}
 
 @Composable
 fun MeScreen(
     settings: AppSettings,
-    videoCount: Int,
-    playlistCount: Int,
     librarySizeLabel: String,
-    onFontSizeChange: (Float) -> Unit,
-    onLiquidGlassChange: (Boolean) -> Unit,
-    onBackgroundChange: (Int) -> Unit,
-    onWifiOnlyChange: (Boolean) -> Unit,
-    onAppLockChange: (Boolean) -> Unit,
-    onReplayTour: () -> Unit,
+    onApplyCustomization: (CustomizationSelection) -> Unit,
+    onSubPageChanged: (Boolean) -> Unit,
     showToast: (String) -> Unit
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var showAbout by remember { mutableStateOf(false) }
-    var showLicense by remember { mutableStateOf(false) }
-    var showDownloadSettings by rememberSaveable { mutableStateOf(false) }
+    var page by rememberSaveable { mutableStateOf(ProfilePage.Home) }
 
-    val lockAvailable = remember(context) {
-        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        val deviceSecure = keyguard?.isDeviceSecure == true
-        val allowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                BiometricManager.Authenticators.BIOMETRIC_WEAK or
-                BiometricManager.Authenticators.DEVICE_CREDENTIAL
-        } else {
-            BiometricManager.Authenticators.BIOMETRIC_STRONG or
-                BiometricManager.Authenticators.BIOMETRIC_WEAK
+    LaunchedEffect(page) {
+        onSubPageChanged(page != ProfilePage.Home)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onSubPageChanged(false) }
+    }
+
+    BackHandler(enabled = page != ProfilePage.Home) {
+        page = ProfilePage.Home
+    }
+
+    AnimatedContent(
+        targetState = page,
+        transitionSpec = {
+            val forward = targetState.ordinal > initialState.ordinal
+            if (forward) {
+                (slideInHorizontally(tween(280)) { it / 3 } + fadeIn(tween(180))) togetherWith
+                    (slideOutHorizontally(tween(220)) { -it / 3 } + fadeOut(tween(150)))
+            } else {
+                (slideInHorizontally(tween(280)) { -it / 3 } + fadeIn(tween(180))) togetherWith
+                    (slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(150)))
+            }
+        },
+        label = "profile-page"
+    ) { current ->
+        when (current) {
+            ProfilePage.Home -> ProfileHome(
+                onOpenHistory = { page = ProfilePage.History },
+                onOpenSettings = { page = ProfilePage.Settings }
+            )
+
+            ProfilePage.History -> DownloadHistoryPage(
+                librarySizeLabel = librarySizeLabel,
+                onBack = { page = ProfilePage.Home },
+                onOpenSettings = { page = ProfilePage.Settings }
+            )
+
+            ProfilePage.Settings -> AppSettingsPage(
+                settings = settings,
+                onBack = { page = ProfilePage.Home },
+                onApplyCustomization = onApplyCustomization,
+                showToast = showToast
+            )
         }
-        val biometrics = BiometricManager.from(context).canAuthenticate(allowed) ==
-            BiometricManager.BIOMETRIC_SUCCESS
-        biometrics || deviceSecure
-    }
-
-    val handleAppLockChange: (Boolean) -> Unit = { enabled ->
-        when {
-            !enabled -> {
-                onAppLockChange(false)
-                showToast("App lock turned off")
-            }
-            lockAvailable -> {
-                onAppLockChange(true)
-                showToast("App lock on. Unlock with biometrics or your device PIN.")
-            }
-            else -> showToast("Set a fingerprint, face, or screen lock in Android settings first.")
-        }
-    }
-
-    BackHandler(enabled = showDownloadSettings) { showDownloadSettings = false }
-
-    AnimatedVisibility(
-        visible = showDownloadSettings,
-        enter = slideInHorizontally(tween(280)) { it / 3 } + fadeIn(tween(180)),
-        exit = slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(150))
-    ) {
-        DownloadSettingsPage(
-            wifiOnly = settings.wifiOnly,
-            onWifiOnlyChange = onWifiOnlyChange,
-            onBack = { showDownloadSettings = false }
-        )
-    }
-
-    if (!showDownloadSettings) {
-        MeHome(
-            settings = settings,
-            videoCount = videoCount,
-            playlistCount = playlistCount,
-            librarySizeLabel = librarySizeLabel,
-            onFontSizeChange = onFontSizeChange,
-            onLiquidGlassChange = onLiquidGlassChange,
-            onBackgroundChange = onBackgroundChange,
-            onWifiOnlyChange = onWifiOnlyChange,
-            onAppLockChange = handleAppLockChange,
-            onReplayTour = onReplayTour,
-            onOpenDownloadSettings = { showDownloadSettings = true },
-            onOpenAbout = { showAbout = true },
-            onOpenLicense = { showLicense = true },
-            onOpenGitHub = {
-                openUrl(context, VIDVIBE_GITHUB_URL) { showToast(it) }
-            }
-        )
-    }
-
-    if (showAbout) {
-        AboutVidVibeDialog(
-            onDismiss = { showAbout = false },
-            onOpenGitHub = {
-                showAbout = false
-                openUrl(context, VIDVIBE_GITHUB_URL) { showToast(it) }
-            }
-        )
-    }
-
-    if (showLicense) {
-        AlertDialog(
-            onDismissRequest = { showLicense = false },
-            containerColor = VidVibeSurface2,
-            titleContentColor = VidVibeText,
-            textContentColor = VidVibeTextSecondary,
-            title = { Text("MIT License", fontWeight = FontWeight.Medium) },
-            text = {
-                Text(
-                    "Copyright (c) 2026 VidVibe\n\n" +
-                        "Permission is hereby granted, free of charge, to any person " +
-                        "obtaining a copy of this software and associated documentation " +
-                        "files, to deal in the Software without restriction, including " +
-                        "without limitation the rights to use, copy, modify, merge, " +
-                        "publish, distribute, sublicense, and/or sell copies of the " +
-                        "Software, subject to the conditions of the MIT License.\n\n" +
-                        "The Software is provided without warranty of any kind."
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showLicense = false }) {
-                    Text("Close", color = VidVibeAccentRed)
-                }
-            }
-        )
     }
 }
 
 @Composable
-private fun MeHome(
-    settings: AppSettings,
-    videoCount: Int,
-    playlistCount: Int,
-    librarySizeLabel: String,
-    onFontSizeChange: (Float) -> Unit,
-    onLiquidGlassChange: (Boolean) -> Unit,
-    onBackgroundChange: (Int) -> Unit,
-    onWifiOnlyChange: (Boolean) -> Unit,
-    onAppLockChange: (Boolean) -> Unit,
-    onReplayTour: () -> Unit,
-    onOpenDownloadSettings: () -> Unit,
-    onOpenAbout: () -> Unit,
-    onOpenLicense: () -> Unit,
-    onOpenGitHub: () -> Unit
+private fun ProfileHome(
+    onOpenHistory: () -> Unit,
+    onOpenSettings: () -> Unit
 ) {
     val background = LocalAppBackground.current
-    var fontValue by rememberSaveable { mutableFloatStateOf(settings.fontSizeSp) }
+    val textColor = LocalAppTextColor.current
 
     Box(
         modifier = Modifier
@@ -252,673 +200,859 @@ private fun MeHome(
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Me",
-                    fontSize = 32.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = (-0.5).sp,
-                    color = VidVibeText,
-                    modifier = Modifier.weight(1f)
+            Text(
+                text = "Profile",
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = (-0.5).sp,
+                color = textColor,
+                modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 40.dp, bottom = 20.dp)
+            )
+
+            SettingsGroup {
+                SettingsRow(
+                    icon = Icons.Outlined.Download,
+                    title = "Download History",
+                    onClick = onOpenHistory
                 )
-                RoundIconButton(
-                    onClick = onOpenAbout,
-                    icon = Icons.Outlined.Info,
-                    contentDescription = "About VidVibe"
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(ProfileBorder)
+                )
+                SettingsRow(
+                    icon = Icons.Outlined.Settings,
+                    title = "App Settings",
+                    onClick = onOpenSettings
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun DownloadHistoryPage(
+    librarySizeLabel: String,
+    onBack: () -> Unit,
+    onOpenSettings: () -> Unit
+) {
+    val background = LocalAppBackground.current
+    val textColor = LocalAppTextColor.current
+    val totalStorage = remember { deviceStorageTotal() }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(background)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            SubHeader(
+                title = "Download History",
+                onBack = onBack,
+                actionIcon = Icons.Outlined.Settings,
+                onAction = onOpenSettings
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Outlined.VideoLibrary,
+                        contentDescription = null,
+                        tint = textColor.copy(alpha = 0.35f),
+                        modifier = Modifier.size(64.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        text = "No Downloads Yet",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textColor.copy(alpha = 0.70f)
+                    )
+                }
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = librarySizeLabel,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                color = Color(0xFFFF453A)
+            )
+            Text(
+                text = " used of $totalStorage",
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace,
+                color = ProfileText3
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppSettingsPage(
+    settings: AppSettings,
+    onBack: () -> Unit,
+    onApplyCustomization: (CustomizationSelection) -> Unit,
+    showToast: (String) -> Unit
+) {
+    val background = LocalAppBackground.current
+
+    var animation by remember { mutableStateOf(AnimationStyle.from(settings.animationStyle)) }
+    var font by remember { mutableStateOf(AppFont.from(settings.appFont)) }
+    var backgroundLook by remember {
+        mutableStateOf(BackgroundLook.from(settings.backgroundLook))
+    }
+    var textTone by remember { mutableStateOf(TextTone.from(settings.textColor)) }
+    var glass by remember { mutableStateOf(MenuGlass.from(settings.glassColor)) }
+    var theme by remember { mutableStateOf(AppThemeMode.from(settings.appTheme)) }
+    var showSuccess by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showSuccess) {
+        if (showSuccess) {
+            delay(2600)
+            showSuccess = false
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(background)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+        ) {
+            SubHeader(
+                title = "App Settings",
+                onBack = onBack
+            )
 
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
+                    .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .navigationBarsPadding()
-                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 100.dp)
             ) {
-                ProfileCard(
-                    videoCount = videoCount,
-                    playlistCount = playlistCount
-                )
-
-                Spacer(Modifier.height(14.dp))
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 720.dp),
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
+                CustomGroup(
+                    icon = Icons.Outlined.AutoAwesome,
+                    title = "Animation Style"
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(11.dp))
-                                .background(VidVibeSelectionBlue.copy(alpha = 0.14f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.VideoLibrary,
-                                contentDescription = null,
-                                tint = VidVibeSelectionBlue,
-                                modifier = Modifier.size(20.dp)
+                        AnimationStyle.entries.forEach { option ->
+                            OptionButton(
+                                label = option.label,
+                                selected = animation == option,
+                                onClick = { animation = option },
+                                modifier = Modifier.weight(1f)
                             )
                         }
-                        Spacer(Modifier.width(13.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = "Library storage",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = VidVibeText,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "$videoCount videos · $playlistCount playlists",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = VidVibeTextTertiary
-                            )
-                        }
-                        Text(
-                            text = librarySizeLabel,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = VidVibeSelectionBlue,
-                            fontWeight = FontWeight.SemiBold
-                        )
                     }
                 }
 
-                Spacer(Modifier.height(22.dp))
-                SectionLabel("Appearance")
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 720.dp),
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
-                ) {
-                    Column {
-                        Column(Modifier.padding(horizontal = 16.dp, vertical = 15.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.TextFields,
-                                    contentDescription = null,
-                                    tint = VidVibeTextSecondary,
-                                    modifier = Modifier.size(21.dp)
-                                )
-                                Spacer(Modifier.width(13.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = "Font size",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = VidVibeText,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = "Applies to the whole app",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = VidVibeTextTertiary
-                                    )
-                                }
-                                Surface(
-                                    color = VidVibeSurface3,
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = "${fontValue.roundToInt()}sp",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = VidVibeTextSecondary,
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp)
-                                    )
-                                }
-                            }
-                            Slider(
-                                value = fontValue,
-                                onValueChange = {
-                                    fontValue = it
-                                    onFontSizeChange(it)
-                                },
-                                valueRange = 12f..24f,
-                                steps = 11,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = VidVibeAccentRed,
-                                    activeTrackColor = VidVibeAccentRed,
-                                    inactiveTrackColor = VidVibeSurface3
-                                )
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "12sp",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = VidVibeTextTertiary
-                                )
-                                Text(
-                                    text = "24sp",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = VidVibeTextTertiary
-                                )
-                            }
-                        }
-
-                        HorizontalDivider(color = VidVibeBorder)
-
-                        SettingRow(
-                            icon = Icons.Outlined.Settings,
-                            title = "Liquid glass navigation",
-                            subtitle = "Translucent blur-style bottom bar",
-                            trailing = {
-                                Switch(
-                                    checked = settings.liquidGlass,
-                                    onCheckedChange = onLiquidGlassChange,
-                                    colors = vidVibeSwitchColors()
-                                )
-                            }
-                        )
-
-                        HorizontalDivider(color = VidVibeBorder)
-
-                        Column(Modifier.padding(horizontal = 16.dp, vertical = 15.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Palette,
-                                    contentDescription = null,
-                                    tint = VidVibeTextSecondary,
-                                    modifier = Modifier.size(21.dp)
-                                )
-                                Spacer(Modifier.width(13.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(
-                                        text = "App background",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = VidVibeText,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                    Text(
-                                        text = BackgroundOptions.firstOrNull {
-                                            it.color.toArgb() == settings.backgroundColor
-                                        }?.name ?: "Custom",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = VidVibeTextTertiary
-                                    )
-                                }
-                            }
-                            Spacer(Modifier.height(14.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(9.dp)
-                            ) {
-                                BackgroundOptions.forEach { option ->
-                                    val selected = option.color.toArgb() == settings.backgroundColor
-                                    Box(
-                                        modifier = Modifier
-                                            .size(34.dp)
-                                            .clip(CircleShape)
-                                            .background(option.color)
-                                            .border(
-                                                width = if (selected) 3.dp else 1.dp,
-                                                color = if (selected) VidVibeText
-                                                else Color.White.copy(alpha = 0.22f),
-                                                shape = CircleShape
-                                            )
-                                            .clickable { onBackgroundChange(option.color.toArgb()) }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(22.dp))
-                SectionLabel("Privacy & security")
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 720.dp),
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
-                ) {
-                    Column {
-                        SettingRow(
-                            icon = Icons.Outlined.Fingerprint,
-                            title = "App lock",
-                            subtitle = if (settings.appLockEnabled) {
-                                "Fingerprint, face, or device PIN required to open"
-                            } else {
-                                "Protect VidVibe with your biometrics"
-                            },
-                            trailing = {
-                                Switch(
-                                    checked = settings.appLockEnabled,
-                                    onCheckedChange = onAppLockChange,
-                                    colors = vidVibeSwitchColors()
-                                )
-                            }
-                        )
-                        HorizontalDivider(color = VidVibeBorder)
-                        SettingRow(
-                            icon = Icons.Outlined.AutoAwesome,
-                            title = "Welcome tour",
-                            subtitle = "Replay the introduction",
-                            onClick = onReplayTour,
-                            trailing = {
-                                Icon(
-                                    imageVector = Icons.Outlined.ChevronRight,
-                                    contentDescription = null,
-                                    tint = VidVibeTextTertiary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(22.dp))
-                SectionLabel("Downloads")
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 720.dp),
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
-                ) {
-                    Column {
-                        SettingRow(
-                            icon = Icons.Outlined.Wifi,
-                            title = "Wi-Fi only",
-                            subtitle = "Block downloads on mobile data",
-                            trailing = {
-                                Switch(
-                                    checked = settings.wifiOnly,
-                                    onCheckedChange = onWifiOnlyChange,
-                                    colors = vidVibeSwitchColors()
-                                )
-                            }
-                        )
-                        HorizontalDivider(color = VidVibeBorder)
-                        SettingRow(
-                            icon = Icons.Outlined.Download,
-                            title = "Download settings",
-                            subtitle = "Quality, storage and connections",
-                            onClick = onOpenDownloadSettings,
-                            trailing = {
-                                Icon(
-                                    imageVector = Icons.Outlined.ChevronRight,
-                                    contentDescription = null,
-                                    tint = VidVibeTextTertiary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(22.dp))
-                SectionLabel("About")
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 720.dp),
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
-                ) {
-                    Column {
-                        SettingRow(
-                            icon = Icons.Outlined.Info,
-                            title = "About VidVibe",
-                            subtitle = "Version ${BuildConfig.VERSION_NAME}",
-                            onClick = onOpenAbout
-                        )
-                        HorizontalDivider(color = VidVibeBorder)
-                        SettingRow(
-                            icon = Icons.Outlined.Code,
-                            title = "Source code",
-                            subtitle = "github.com/xspeen/VidVibe",
-                            onClick = onOpenGitHub
-                        )
-                        HorizontalDivider(color = VidVibeBorder)
-                        SettingRow(
-                            icon = Icons.Outlined.Description,
-                            title = "License",
-                            subtitle = "MIT License",
-                            onClick = onOpenLicense
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(16.dp))
-
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 720.dp),
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(14.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
+                CustomGroup(
+                    icon = Icons.Outlined.TextFields,
+                    title = "App Font"
                 ) {
                     Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Lock,
-                            contentDescription = null,
-                            tint = VidVibeTextTertiary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Your videos stay on this device. VidVibe has no " +
-                                "accounts, ads or tracking.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = VidVibeTextTertiary
-                        )
+                        AppFont.entries.forEach { option ->
+                            OptionButton(
+                                label = option.label,
+                                selected = font == option,
+                                onClick = { font = option },
+                                fontFamily = option.family,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
 
-                Spacer(Modifier.height(20.dp))
-                Text(
-                    text = "VidVibe ${BuildConfig.VERSION_NAME} · MIT License",
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
-                    color = VidVibeTextTertiary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                CustomGroup(
+                    icon = Icons.Outlined.Palette,
+                    title = "Background Look"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        BackgroundLook.entries.forEach { option ->
+                            OptionButton(
+                                label = option.label,
+                                selected = backgroundLook == option,
+                                onClick = { backgroundLook = option },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                CustomGroup(
+                    icon = Icons.Outlined.Palette,
+                    title = "Text Color"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TextTone.entries.forEach { option ->
+                            TextColorDot(
+                                color = option.color,
+                                selected = textTone == option,
+                                onClick = { textTone = option }
+                            )
+                        }
+                    }
+                }
+
+                CustomGroup(
+                    icon = Icons.Outlined.Settings,
+                    title = "Floating Menu Colors"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        MenuGlass.entries.forEach { option ->
+                            GlassColorDot(
+                                glass = option,
+                                selected = glass == option,
+                                onClick = { glass = option }
+                            )
+                        }
+                    }
+                }
+
+                CustomGroup(
+                    icon = Icons.Outlined.DarkMode,
+                    title = "App Theme"
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AppThemeMode.entries.forEach { option ->
+                            OptionButton(
+                                label = option.label,
+                                selected = theme == option,
+                                onClick = { theme = option },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                PremiumSlideToUpgrade(
+                    onUpgrade = {
+                        onApplyCustomization(
+                            CustomizationSelection(
+                                animationStyle = animation,
+                                appFont = font,
+                                backgroundLook = backgroundLook,
+                                textColor = textTone,
+                                glassColor = glass,
+                                appTheme = theme
+                            )
+                        )
+                        showToast("Customization applied")
+                        showSuccess = true
+                    }
                 )
-                Spacer(Modifier.height(24.dp))
             }
+        }
+
+        if (showSuccess) {
+            PremiumSuccessCircle(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = 124.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun ProfileCard(
-    videoCount: Int,
-    playlistCount: Int
+private fun SubHeader(
+    title: String,
+    onBack: () -> Unit,
+    actionIcon: ImageVector? = null,
+    onAction: (() -> Unit)? = null
 ) {
-    Surface(
+    val textColor = LocalAppTextColor.current
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .widthIn(max = 720.dp),
-        color = VidVibeSurface2,
-        shape = RoundedCornerShape(20.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
+            .padding(start = 20.dp, end = 20.dp, top = 40.dp, bottom = 20.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(60.dp)
-                        .background(Color(0xFF12131A), RoundedCornerShape(16.dp))
-                        .border(1.dp, VidVibeBorder, RoundedCornerShape(16.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Image(
-                        painter = painterResource(R.drawable.ic_launcher_foreground),
-                        contentDescription = null,
-                        modifier = Modifier.size(56.dp)
-                    )
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = "VidVibe",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = VidVibeText,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = "Version ${BuildConfig.VERSION_NAME} · Open source",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = VidVibeTextTertiary
-                    )
-                }
-            }
-            Spacer(Modifier.height(18.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ProfileStat(
-                    value = videoCount.toString(),
-                    label = if (videoCount == 1) "video" else "videos",
-                    modifier = Modifier.weight(1f)
-                )
-                ProfileStat(
-                    value = playlistCount.toString(),
-                    label = if (playlistCount == 1) "playlist" else "playlists",
-                    modifier = Modifier.weight(1f)
-                )
-            }
+        RoundGlassIcon(
+            icon = Icons.Outlined.ArrowBack,
+            contentDescription = "Back",
+            onClick = onBack
+        )
+        Spacer(Modifier.width(16.dp))
+        Text(
+            text = title,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = (-0.5).sp,
+            color = textColor,
+            modifier = Modifier.weight(1f)
+        )
+        if (actionIcon != null && onAction != null) {
+            RoundGlassIcon(
+                icon = actionIcon,
+                contentDescription = "Settings",
+                onClick = onAction
+            )
         }
     }
 }
 
 @Composable
-private fun ProfileStat(
-    value: String,
-    label: String,
-    modifier: Modifier = Modifier
+private fun RoundGlassIcon(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
 ) {
-    Column(
-        modifier = modifier
-            .background(Color(0xFF13141B), RoundedCornerShape(12.dp))
-            .padding(horizontal = 13.dp, vertical = 11.dp)
+    val textColor = LocalAppTextColor.current
+    Box(
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.15f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            color = VidVibeText,
-            fontWeight = FontWeight.Medium
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = VidVibeTextTertiary
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = textColor,
+            modifier = Modifier.size(18.dp)
         )
     }
 }
 
 @Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text.uppercase(),
-        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-        color = VidVibeTextTertiary,
-        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp)
+private fun SettingsGroup(
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(ProfileSurface)
+            .border(1.dp, ProfileBorder, RoundedCornerShape(16.dp)),
+        content = content
     )
 }
 
 @Composable
-private fun SettingRow(
+private fun SettingsRow(
     icon: ImageVector,
     title: String,
-    subtitle: String,
-    onClick: (() -> Unit)? = null,
-    trailing: @Composable () -> Unit = {}
+    onClick: () -> Unit
 ) {
+    val textColor = LocalAppTextColor.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .clickable(onClick = onClick)
+            .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = VidVibeTextSecondary,
-            modifier = Modifier.size(21.dp)
+            tint = textColor,
+            modifier = Modifier.size(24.dp)
         )
-        Spacer(Modifier.width(13.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge,
-                color = VidVibeText,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = VidVibeTextTertiary
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        trailing()
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = title,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = textColor,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = Icons.Outlined.ChevronRight,
+            contentDescription = null,
+            tint = textColor.copy(alpha = 0.40f),
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
 
 @Composable
-private fun DownloadSettingsPage(
-    wifiOnly: Boolean,
-    onWifiOnlyChange: (Boolean) -> Unit,
-    onBack: () -> Unit
+private fun CustomGroup(
+    icon: ImageVector,
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
 ) {
-    val background = LocalAppBackground.current
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 16.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(ProfileSurface)
+            .border(1.dp, ProfileBorder, RoundedCornerShape(16.dp))
+            .padding(16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = ProfileText2,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = title.uppercase(),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = ProfileText2,
+                letterSpacing = 0.65.sp
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        content()
+    }
+}
+
+@Composable
+private fun OptionButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    fontFamily: FontFamily = FontFamily.SansSerif
+) {
+    Box(
+        modifier = modifier
+            .height(40.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (selected) ProfileBlue else Color.White.copy(alpha = 0.05f)
+            )
+            .border(
+                width = 1.dp,
+                color = if (selected) ProfileBlue else Color.White.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(10.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = fontFamily,
+            color = if (selected) Color.White else LocalAppTextColor.current
+        )
+    }
+}
+
+@Composable
+private fun TextColorDot(
+    color: Color,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
-            .fillMaxSize()
-            .background(background)
+            .size(32.dp)
+            .clip(CircleShape)
+            .border(
+                width = 2.dp,
+                color = if (selected) Color.White else Color.White.copy(alpha = 0.20f),
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
-        Column(
+        Box(
+            modifier = Modifier
+                .size(16.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+    }
+}
+
+@Composable
+private fun GlassColorDot(
+    glass: MenuGlass,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(glass.background)
+            .border(
+                width = 2.dp,
+                color = if (selected) Color.White else glass.highlight,
+                shape = CircleShape
+            )
+            .clickable(onClick = onClick)
+    )
+}
+
+@Composable
+private fun PremiumSlideToUpgrade(onUpgrade: () -> Unit) {
+    val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
+    val insetPx = with(density) { 4.dp.toPx() }
+    val handlePx = with(density) { 48.dp.toPx() }
+    var trackWidthPx by remember { mutableIntStateOf(0) }
+    val maxOffset = (trackWidthPx - handlePx - insetPx * 2f).coerceAtLeast(1f)
+
+    val settle = remember { Animatable(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragValue by remember { mutableFloatStateOf(0f) }
+    val current = if (dragging) dragValue else settle.value
+
+    var upgraded by remember { mutableStateOf(false) }
+
+    val pulse by rememberInfiniteTransition(label = "premium-pulse").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "premium-pulse-value"
+    )
+    val threshold = maxOffset * 0.7f
+    val dragFade = if (upgraded) 0f else {
+        (1f - current / threshold).coerceIn(0f, 1f)
+    }
+    val textAlpha = (0.4f + pulse * 0.4f) * dragFade
+
+    LaunchedEffect(upgraded) {
+        if (upgraded) {
+            delay(300)
+            onUpgrade()
+            delay(2400)
+            upgraded = false
+            settle.snapTo(0f)
+            dragValue = 0f
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(top = 30.dp, bottom = 30.dp)
+            .height(64.dp)
+            .clip(RoundedCornerShape(32.dp))
+            .background(Color(0x1AFFD700))
+            .border(1.dp, Color(0x4DFFD700), RoundedCornerShape(32.dp))
+            .onSizeChanged { trackWidthPx = it.width }
+            .padding(4.dp)
+    ) {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0x66000000)),
+            contentAlignment = Alignment.Center
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RoundIconButton(
-                    onClick = onBack,
-                    icon = Icons.Outlined.ArrowBack,
-                    contentDescription = "Back",
-                    tint = VidVibeText
-                )
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    text = "Download settings",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = VidVibeText,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            Text(
+                text = "Slide to Upgrade",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.7.sp,
+                color = ProfileGold.copy(alpha = textAlpha),
+                modifier = Modifier.alpha(textAlpha)
+            )
+        }
 
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Text(
-                    text = "Downloads are saved to Movies/VidVibe in your gallery. " +
-                        "VidVibe removes its temporary copy as soon as the file is " +
-                        "published.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = VidVibeTextSecondary,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset { IntOffset((current).roundToInt(), 0) }
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xE6FFD700), Color(0xE6FFA500))
+                    )
                 )
-
-                Spacer(Modifier.height(10.dp))
-
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
-                ) {
-                    Column {
-                        SettingRow(
-                            icon = Icons.Outlined.Wifi,
-                            title = "Wi-Fi only",
-                            subtitle = "Prevent downloads on mobile data",
-                            trailing = {
-                                Switch(
-                                    checked = wifiOnly,
-                                    onCheckedChange = onWifiOnlyChange,
-                                    colors = vidVibeSwitchColors()
-                                )
+                .border(1.dp, Color.White.copy(alpha = 0.50f), CircleShape)
+                .pointerInput(maxOffset, upgraded) {
+                    if (upgraded) return@pointerInput
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            dragging = true
+                            dragValue = settle.value
+                            haptics.performHapticFeedback(
+                                androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
+                            )
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragValue = (dragValue + dragAmount).coerceIn(0f, maxOffset)
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            if (dragValue >= maxOffset * 0.7f) {
+                                scope.launch {
+                                    settle.snapTo(dragValue)
+                                    settle.animateTo(
+                                        targetValue = maxOffset,
+                                        animationSpec = tween(
+                                            durationMillis = 200,
+                                            easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
+                                        )
+                                    )
+                                    upgraded = true
+                                }
+                            } else {
+                                scope.launch {
+                                    settle.snapTo(dragValue)
+                                    settle.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = tween(
+                                            durationMillis = 300,
+                                            easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
+                                        )
+                                    )
+                                    dragValue = 0f
+                                }
                             }
-                        )
-                        HorizontalDivider(color = VidVibeBorder)
-                        SettingRow(
-                            icon = Icons.Outlined.Download,
-                            title = "Default quality",
-                            subtitle = "You choose quality for every download",
-                            trailing = {
-                                Text(
-                                    text = "Ask",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = VidVibeTextTertiary
+                        },
+                        onDragCancel = {
+                            dragging = false
+                            scope.launch {
+                                settle.snapTo(dragValue)
+                                settle.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(
+                                        durationMillis = 300,
+                                        easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
+                                    )
                                 )
+                                dragValue = 0f
                             }
-                        )
-                        HorizontalDivider(color = VidVibeBorder)
-                        SettingRow(
-                            icon = Icons.Outlined.VideoLibrary,
-                            title = "Save location",
-                            subtitle = "Movies/VidVibe",
-                            trailing = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Lock,
-                                    contentDescription = null,
-                                    tint = VidVibeTextTertiary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        )
-                    }
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(24.dp)) {
+                val s = size.minDimension / 24f
+                val crown = Path().apply {
+                    moveTo(2f * s, 19f * s)
+                    lineTo(22f * s, 19f * s)
+                    lineTo(22f * s, 21f * s)
+                    lineTo(2f * s, 21f * s)
+                    close()
+                    moveTo(2f * s, 9f * s)
+                    lineTo(6f * s, 13f * s)
+                    lineTo(12f * s, 5f * s)
+                    lineTo(18f * s, 13f * s)
+                    lineTo(22f * s, 9f * s)
+                    lineTo(20f * s, 19f * s)
+                    lineTo(4f * s, 19f * s)
+                    close()
                 }
-
-                Spacer(Modifier.height(16.dp))
-
-                Text(
-                    text = "VidVibe uses yt-dlp to resolve public links and selects a " +
-                        "progressive MP4 stream. Video and audio are already combined, " +
-                        "so no separate FFmpeg merge is required on your phone.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = VidVibeTextTertiary,
-                    modifier = Modifier.padding(horizontal = 4.dp)
-                )
-
-                Spacer(Modifier.height(20.dp))
+                drawPath(crown, color = Color.Black)
             }
         }
     }
 }
 
-@Composable
-private fun vidVibeSwitchColors() = SwitchDefaults.colors(
-    checkedThumbColor = Color.White,
-    checkedTrackColor = VidVibeRed,
-    uncheckedThumbColor = VidVibeTextSecondary,
-    uncheckedTrackColor = VidVibeSurface3,
-    uncheckedBorderColor = VidVibeBorder
+private data class PremiumSparkle(
+    val angle: Float,
+    val distance: Float,
+    val color: Color
 )
 
-private fun openUrl(context: Context, url: String, onError: (String) -> Unit) {
-    try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-    } catch (_: ActivityNotFoundException) {
-        onError("No browser app is available.")
+@Composable
+private fun PremiumSuccessCircle(modifier: Modifier = Modifier) {
+    val scale = remember { Animatable(0f) }
+    val circle = remember { Animatable(0f) }
+    val check = remember { Animatable(0f) }
+    val burst = remember { Animatable(0f) }
+
+    val sparkles = remember {
+        val colors = listOf(
+            Color.White,
+            ProfileGreen,
+            Color(0xFFA7F3C5),
+            ProfileGold
+        )
+        List(12) { index ->
+            PremiumSparkle(
+                angle = (index / 12f) * (2f * PI.toFloat()),
+                distance = 40f + Random.nextFloat() * 30f,
+                color = colors[index % colors.size]
+            )
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        launch {
+            scale.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 400,
+                    easing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
+                )
+            )
+        }
+        launch {
+            delay(100)
+            circle.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 800,
+                    easing = CubicBezierEasing(0.65f, 0f, 0.45f, 1f)
+                )
+            )
+        }
+        launch {
+            delay(800)
+            check.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 600,
+                    easing = CubicBezierCubicEasing()
+                )
+            )
+        }
+        launch {
+            delay(700)
+            burst.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = 1000,
+                    easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                )
+            )
+        }
+    }
+
+    Box(
+        modifier = modifier.size(160.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        sparkles.forEach { sparkle ->
+            val dx = cos(sparkle.angle) * sparkle.distance * burst.value
+            val dy = sin(sparkle.angle) * sparkle.distance * burst.value
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(dx.roundToInt(), dy.roundToInt()) }
+                    .size(6.dp)
+                    .graphicsLayer {
+                        val remaining = 1f - burst.value
+                        scaleX = remaining
+                        scaleY = remaining
+                        rotationZ = 360f * burst.value
+                        alpha = remaining
+                    }
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(sparkle.color)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .graphicsLayer {
+                    scaleX = scale.value
+                    scaleY = scale.value
+                }
+                .clip(CircleShape)
+                .background(ProfileGreen),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(32.dp)) {
+                val s = size.width / 52f
+                val center = Offset(26f * s, 26f * s)
+
+                drawArc(
+                    color = Color.White,
+                    startAngle = 0f,
+                    sweepAngle = 360f * circle.value,
+                    useCenter = false,
+                    topLeft = Offset(center.x - 25f * s, center.y - 25f * s),
+                    size = Size(50f * s, 50f * s),
+                    style = Stroke(width = 4f * s)
+                )
+
+                if (check.value > 0f) {
+                    val path = Path().apply {
+                        moveTo(14.1f * s, 27.2f * s)
+                        lineTo(21.2f * s, 34.4f * s)
+                        lineTo(37.9f * s, 17.6f * s)
+                    }
+                    val measure = PathMeasure().apply { setPath(path, false) }
+                    val segment = Path()
+                    measure.getSegment(
+                        startDistance = 0f,
+                        stopDistance = measure.length * check.value,
+                        destination = segment,
+                        startWithMoveTo = true
+                    )
+                    drawPath(
+                        path = segment,
+                        color = Color.White,
+                        style = Stroke(
+                            width = 5f * s,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun CubicBezierCubicEasing(): androidx.compose.animation.core.Easing =
+    CubicBezierEasing(0.65f, 0f, 0.45f, 1f)
+
+private fun deviceStorageTotal(): String {
+    return try {
+        val stat = StatFs(Environment.getDataDirectory().path)
+        formatFileSize(stat.totalBytes)
+    } catch (_: Exception) {
+        "0 B"
     }
 }

@@ -1,8 +1,8 @@
 package com.vidvibe.app.ui.components
 
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -11,13 +11,16 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,10 +48,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vidvibe.app.ui.theme.LocalAppTextColor
 
-private val NavBlue = Color(0xFF4E9BFF)
-
-private enum class NavGlyph { Local, Downloader, Trash, Me }
+private enum class NavGlyph { Local, Downloader, Trash, Profile }
 
 private data class NavDestination(
     val label: String,
@@ -59,8 +61,10 @@ private val destinations = listOf(
     NavDestination("Local", NavGlyph.Local),
     NavDestination("Downloader", NavGlyph.Downloader),
     NavDestination("Trash", NavGlyph.Trash),
-    NavDestination("Me", NavGlyph.Me)
+    NavDestination("Profile", NavGlyph.Profile)
 )
+
+private val Gold = Color(0xFFFFD700)
 
 @Composable
 fun CustomBottomNav(
@@ -81,6 +85,8 @@ fun CustomBottomNav(
         ),
         label = "nav-translation"
     )
+    val textColor = LocalAppTextColor.current
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -88,44 +94,89 @@ fun CustomBottomNav(
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 24.dp)
     ) {
-        val shape = RoundedCornerShape(32.dp)
-        Row(
+        val shape = RoundedCornerShape(38.dp)
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(76.dp)
                 .clip(shape)
                 .then(
                     if (liquidGlass) {
-                        Modifier.background(
-                            Brush.verticalGradient(
-                                listOf(Color(0xB3141419), Color(0x99141419))
-                            )
-                        )
+                        Modifier.background(Color(0xB30A0A0C))
                     } else {
                         Modifier.background(Color(0xF208080A))
                     }
                 )
                 .border(
                     width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.22f),
-                            Color.White.copy(alpha = 0.08f)
-                        )
-                    ),
+                    color = Color.White.copy(alpha = 0.08f),
                     shape = shape
                 )
-                .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = 8.dp)
         ) {
-            destinations.forEachIndexed { index, destination ->
-                NavItem(
-                    destination = destination,
-                    selected = selectedIndex == index,
-                    enabled = visible,
-                    onClick = { onSelect(index) }
+            val indicatorWidth = 64.dp
+            // Row uses SpaceAround with fixed 64dp items, so mirror that spacing.
+            val gap = (maxWidth - indicatorWidth * destinations.size) / 8f
+            val indicatorOffset by animateDpAsState(
+                targetValue = gap + (indicatorWidth + gap * 2f) * selectedIndex.toFloat(),
+                animationSpec = tween(
+                    durationMillis = 450,
+                    easing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
+                ),
+                label = "nav-indicator"
+            )
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .offset(x = indicatorOffset, y = 6.dp)
+                    .width(indicatorWidth)
+                    .height(64.dp)
+                    .clip(RoundedCornerShape(32.dp))
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.18f),
+                        shape = RoundedCornerShape(32.dp)
+                    )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(1.5.dp)
+                        .background(Color.White.copy(alpha = 0.60f))
                 )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.5f)
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.20f),
+                                    Color.Transparent
+                                )
+                            )
+                        )
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                destinations.forEachIndexed { index, destination ->
+                    NavItem(
+                        destination = destination,
+                        selected = selectedIndex == index,
+                        enabled = visible,
+                        textColor = textColor,
+                        onClick = { onSelect(index) }
+                    )
+                }
             }
         }
     }
@@ -136,12 +187,13 @@ private fun NavItem(
     destination: NavDestination,
     selected: Boolean,
     enabled: Boolean,
+    textColor: Color,
     onClick: () -> Unit
 ) {
     val density = LocalDensity.current
     val lift by animateFloatAsState(
-        targetValue = if (selected) -2f else 0f,
-        animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f),
+        targetValue = if (selected) -1f else 0f,
+        animationSpec = tween(300, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
         label = "nav-lift"
     )
     val contentAlpha by animateFloatAsState(
@@ -155,6 +207,7 @@ private fun NavItem(
         modifier = Modifier
             .width(64.dp)
             .fillMaxHeight()
+            .graphicsLayer { alpha = contentAlpha }
             .clickable(
                 enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
@@ -164,36 +217,89 @@ private fun NavItem(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        NavGlyph(
-            glyph = destination.glyph,
-            selected = selected,
+        Box(
             modifier = Modifier
                 .size(22.dp)
-                .graphicsLayer {
-                    translationY = liftPx
-                    alpha = contentAlpha
-                }
-        )
+                .graphicsLayer { translationY = liftPx },
+            contentAlignment = Alignment.Center
+        ) {
+            NavGlyph(
+                glyph = destination.glyph,
+                color = textColor,
+                modifier = Modifier.size(22.dp)
+            )
+            if (destination.glyph == NavGlyph.Profile) {
+                Crown(
+                    selected = selected,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = (-8).dp)
+                )
+            }
+        }
         Spacer(Modifier.height(6.dp))
         Text(
             text = destination.label,
             style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 0.2.sp
             ),
-            color = if (selected) Color.White else Color.White.copy(alpha = 0.5f)
+            color = textColor
         )
+    }
+}
+
+@Composable
+private fun Crown(
+    selected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (selected) 0f else -10f,
+        animationSpec = tween(300, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
+        label = "crown-rotation"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1.1f else 1f,
+        animationSpec = tween(300, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
+        label = "crown-scale"
+    )
+    Canvas(
+        modifier = modifier
+            .size(14.dp)
+            .graphicsLayer {
+                rotationZ = rotation
+                scaleX = scale
+                scaleY = scale
+            }
+    ) {
+        val s = size.minDimension / 24f
+        val crown = Path().apply {
+            moveTo(2f * s, 19f * s)
+            lineTo(22f * s, 19f * s)
+            lineTo(22f * s, 21f * s)
+            lineTo(2f * s, 21f * s)
+            close()
+            moveTo(2f * s, 9f * s)
+            lineTo(6f * s, 13f * s)
+            lineTo(12f * s, 5f * s)
+            lineTo(18f * s, 13f * s)
+            lineTo(22f * s, 9f * s)
+            lineTo(20f * s, 19f * s)
+            lineTo(4f * s, 19f * s)
+            close()
+        }
+        drawPath(crown, color = Gold)
     }
 }
 
 @Composable
 private fun NavGlyph(
     glyph: NavGlyph,
-    selected: Boolean,
+    color: Color,
     modifier: Modifier = Modifier
 ) {
-    val color = if (selected) NavBlue else Color.White
     Canvas(modifier) {
         val s = size.minDimension / 24f
         val w = 1.8f * s
@@ -221,7 +327,7 @@ private fun NavGlyph(
                     lineTo(10f * s, 15f * s)
                     close()
                 }
-                drawPath(triangle, color = NavBlue)
+                drawPath(triangle, color = color)
             }
 
             NavGlyph.Downloader -> {
@@ -276,27 +382,29 @@ private fun NavGlyph(
                 drawLine(color, o(14f, 11f), o(14f, 17f), strokeWidth = w, cap = StrokeCap.Round)
             }
 
-            NavGlyph.Me -> {
+            NavGlyph.Profile -> {
                 drawCircle(
                     color = color,
-                    radius = 3.5f * s,
-                    center = o(12f, 8f),
-                    style = stroke
+                    radius = 4f * s,
+                    center = o(12f, 7f)
                 )
                 val body = Path().apply {
-                    moveTo(5.5f * s, 20f * s)
+                    moveTo(4f * s, 21f * s)
+                    lineTo(4f * s, 20f * s)
                     cubicTo(
-                        5.5f * s, 16.5f * s,
-                        8f * s, 14.5f * s,
-                        12f * s, 14.5f * s
+                        4f * s, 16.5f * s,
+                        7.5f * s, 14f * s,
+                        12f * s, 14f * s
                     )
                     cubicTo(
-                        16f * s, 14.5f * s,
-                        18.5f * s, 16.5f * s,
-                        18.5f * s, 20f * s
+                        16.5f * s, 14f * s,
+                        20f * s, 16.5f * s,
+                        20f * s, 20f * s
                     )
+                    lineTo(20f * s, 21f * s)
+                    close()
                 }
-                drawPath(body, color = color, style = stroke)
+                drawPath(body, color = color)
             }
         }
     }

@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -21,7 +22,13 @@ data class AppSettings(
     val backgroundColor: Int = 0xFF050507.toInt(),
     val wifiOnly: Boolean = false,
     val appLockEnabled: Boolean = false,
-    val onboardingSeen: Boolean = false
+    val onboardingSeen: Boolean = false,
+    val animationStyle: String = "bouncy",
+    val appFont: String = "inter",
+    val backgroundLook: String = "midnight",
+    val textColor: String = "white",
+    val glassColor: String = "default",
+    val appTheme: String = "dark"
 )
 
 class SettingsStore(private val context: Context) {
@@ -33,6 +40,12 @@ class SettingsStore(private val context: Context) {
         val wifiOnly = booleanPreferencesKey("wifi_only")
         val appLock = booleanPreferencesKey("app_lock")
         val onboardingSeen = booleanPreferencesKey("onboarding_seen")
+        val animationStyle = stringPreferencesKey("animation_style")
+        val appFont = stringPreferencesKey("app_font")
+        val backgroundLook = stringPreferencesKey("background_look")
+        val textColor = stringPreferencesKey("text_color")
+        val glassColor = stringPreferencesKey("glass_color")
+        val appTheme = stringPreferencesKey("app_theme")
     }
 
     val settings: Flow<AppSettings> = context.vidVibeDataStore.data.map { preferences ->
@@ -42,7 +55,13 @@ class SettingsStore(private val context: Context) {
             backgroundColor = preferences[Keys.backgroundColor] ?: 0xFF050507.toInt(),
             wifiOnly = preferences[Keys.wifiOnly] ?: false,
             appLockEnabled = preferences[Keys.appLock] ?: false,
-            onboardingSeen = preferences[Keys.onboardingSeen] ?: false
+            onboardingSeen = preferences[Keys.onboardingSeen] ?: false,
+            animationStyle = preferences[Keys.animationStyle] ?: "bouncy",
+            appFont = preferences[Keys.appFont] ?: "inter",
+            backgroundLook = preferences[Keys.backgroundLook] ?: "midnight",
+            textColor = preferences[Keys.textColor] ?: "white",
+            glassColor = preferences[Keys.glassColor] ?: "default",
+            appTheme = preferences[Keys.appTheme] ?: "dark"
         )
     }
 
@@ -68,5 +87,23 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setOnboardingSeen(seen: Boolean) {
         context.vidVibeDataStore.edit { it[Keys.onboardingSeen] = seen }
+    }
+
+    suspend fun setCustomization(
+        animationStyle: String,
+        appFont: String,
+        backgroundLook: String,
+        textColor: String,
+        glassColor: String,
+        appTheme: String
+    ) {
+        context.vidVibeDataStore.edit { preferences ->
+            preferences[Keys.animationStyle] = animationStyle
+            preferences[Keys.appFont] = appFont
+            preferences[Keys.backgroundLook] = backgroundLook
+            preferences[Keys.textColor] = textColor
+            preferences[Keys.glassColor] = glassColor
+            preferences[Keys.appTheme] = appTheme
+        }
     }
 }

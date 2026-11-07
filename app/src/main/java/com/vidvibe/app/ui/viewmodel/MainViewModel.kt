@@ -237,6 +237,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsStore.setOnboardingSeen(seen) }
     }
 
+    fun setCustomization(
+        animationStyle: String,
+        appFont: String,
+        backgroundLook: String,
+        textColor: String,
+        glassColor: String,
+        appTheme: String
+    ) {
+        viewModelScope.launch {
+            settingsStore.setCustomization(
+                animationStyle = animationStyle,
+                appFont = appFont,
+                backgroundLook = backgroundLook,
+                textColor = textColor,
+                glassColor = glassColor,
+                appTheme = appTheme
+            )
+        }
+    }
+
     fun createPlaylist(name: String): Playlist? = playlistStore.createPlaylist(name)
 
     fun addVideosToPlaylist(playlistId: String, videoIds: Set<Long>) {

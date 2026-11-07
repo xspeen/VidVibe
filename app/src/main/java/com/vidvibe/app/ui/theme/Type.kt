@@ -6,6 +6,27 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
+fun vidVibeTypography(fontFamily: FontFamily): Typography {
+    fun TextStyle.withFamily() = copy(fontFamily = fontFamily)
+    return Typography(
+        displayLarge = VidVibeTypography.displayLarge.withFamily(),
+        displayMedium = VidVibeTypography.displayMedium.withFamily(),
+        displaySmall = VidVibeTypography.displaySmall.withFamily(),
+        headlineLarge = VidVibeTypography.headlineLarge.withFamily(),
+        headlineMedium = VidVibeTypography.headlineMedium.withFamily(),
+        headlineSmall = VidVibeTypography.headlineSmall.withFamily(),
+        titleLarge = VidVibeTypography.titleLarge.withFamily(),
+        titleMedium = VidVibeTypography.titleMedium.withFamily(),
+        titleSmall = VidVibeTypography.titleSmall.withFamily(),
+        bodyLarge = VidVibeTypography.bodyLarge.withFamily(),
+        bodyMedium = VidVibeTypography.bodyMedium.withFamily(),
+        bodySmall = VidVibeTypography.bodySmall.withFamily(),
+        labelLarge = VidVibeTypography.labelLarge.withFamily(),
+        labelMedium = VidVibeTypography.labelMedium.withFamily(),
+        labelSmall = VidVibeTypography.labelSmall.withFamily()
+    )
+}
+
 val VidVibeTypography = Typography(
     displayLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,

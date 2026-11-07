@@ -125,6 +125,7 @@ import com.vidvibe.app.ui.theme.VidVibeSurface2
 import com.vidvibe.app.ui.theme.VidVibeText
 import com.vidvibe.app.ui.theme.VidVibeTextSecondary
 import com.vidvibe.app.ui.theme.VidVibeTextTertiary
+import com.vidvibe.app.ui.theme.LocalAppTextColor
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -411,7 +412,7 @@ fun LocalScreen(
                     onDelete = {
                         menu.openSlide(
                             color = FloatingMenuColor.Delete,
-                            label = "Slide to Delete"
+                            label = "Swipe to Delete"
                         )
                     },
                     onRestore = {},
@@ -508,6 +509,7 @@ private fun LocalHero(
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val textColor = LocalAppTextColor.current
 
     LaunchedEffect(searchOpen) {
         if (searchOpen) {
@@ -518,161 +520,169 @@ private fun LocalHero(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
             .clip(RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp))
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xE61C1C21), Color(0xF20A0A0C))
-                )
-            )
-            .border(
-                width = 1.dp,
-                brush = Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f))
-                ),
-                shape = RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp)
-            )
-            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.PlayArrow,
-                    contentDescription = null,
-                    tint = Color.Black,
-                    modifier = Modifier.size(16.dp)
+        AsyncImage(
+            model = "https://iili.io/nDfqQQ2.jpg",
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.matchParentSize()
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0x4D0A0A0C), Color(0xE60A0A0C))
+                    )
                 )
-            }
-            Spacer(Modifier.width(10.dp))
-            Text(
-                text = "VidVibe",
-                fontFamily = FontFamily.Serif,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                maxLines = 1,
-                modifier = Modifier.weight(1f)
-            )
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.10f))
-                    .border(1.dp, Color.White.copy(alpha = 0.05f), CircleShape)
-                    .clickable(onClick = onShuffle),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Shuffle,
-                    contentDescription = "Shuffle videos",
-                    tint = GlassText,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        AnimatedContent(
-            targetState = searchOpen,
-            transitionSpec = {
-                (fadeIn(tween(220)) + scaleIn(initialScale = 0.95f)) togetherWith
-                    (fadeOut(tween(180)) + scaleOut(targetScale = 0.95f))
-            },
-            label = "search-pill"
-        ) { open ->
-            if (open) {
-                Row(
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 24.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(26.dp))
-                        .padding(start = 16.dp, end = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Search,
+                        imageVector = Icons.Outlined.PlayArrow,
                         contentDescription = null,
-                        tint = GlassText2,
-                        modifier = Modifier.size(20.dp)
+                        tint = Color.Black,
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(Modifier.width(12.dp))
-                    BasicTextField(
-                        value = searchQuery,
-                        onValueChange = onSearchQueryChange,
-                        modifier = Modifier
-                            .weight(1f)
-                            .focusRequester(focusRequester),
-                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
-                        cursorBrush = SolidColor(Color.White),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                        keyboardActions = KeyboardActions(onSearch = { onCloseSearch() }),
-                        decorationBox = { inner ->
-                            Box {
-                                if (searchQuery.isEmpty()) {
-                                    Text(
-                                        text = "Search...",
-                                        fontSize = 15.sp,
-                                        color = GlassText3
-                                    )
-                                }
-                                inner()
-                            }
-                        }
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "VidVibe",
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = textColor,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.15f))
+                        .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
+                        .clickable(onClick = onShuffle),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Shuffle,
+                        contentDescription = "Shuffle videos",
+                        tint = textColor,
+                        modifier = Modifier.size(18.dp)
                     )
-                    Box(
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            AnimatedContent(
+                targetState = searchOpen,
+                transitionSpec = {
+                    (fadeIn(tween(220)) + scaleIn(initialScale = 0.95f)) togetherWith
+                        (fadeOut(tween(180)) + scaleOut(targetScale = 0.95f))
+                },
+                label = "search-pill"
+            ) { open ->
+                if (open) {
+                    Row(
                         modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(26.dp))
                             .background(Color.White.copy(alpha = 0.15f))
-                            .clickable(onClick = onCloseSearch),
-                        contentAlignment = Alignment.Center
+                            .border(1.dp, GlassBlue.copy(alpha = 0.60f), RoundedCornerShape(26.dp))
+                            .padding(start = 16.dp, end = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Close,
-                            contentDescription = "Close search",
-                            tint = Color.White,
-                            modifier = Modifier.size(12.dp)
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = null,
+                            tint = GlassBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        BasicTextField(
+                            value = searchQuery,
+                            onValueChange = onSearchQueryChange,
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusRequester(focusRequester),
+                            textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                            cursorBrush = SolidColor(Color.White),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { onCloseSearch() }),
+                            decorationBox = { inner ->
+                                Box {
+                                    if (searchQuery.isEmpty()) {
+                                        Text(
+                                            text = "Search...",
+                                            fontSize = 15.sp,
+                                            color = GlassText3
+                                        )
+                                    }
+                                    inner()
+                                }
+                            }
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.15f))
+                                .clickable(onClick = onCloseSearch),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Close,
+                                contentDescription = "Close search",
+                                tint = Color.White,
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(Color.Black.copy(alpha = 0.50f))
+                            .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(26.dp))
+                            .clickable(onClick = onOpenSearch)
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = null,
+                            tint = GlassText3,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = "Search your library...",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = GlassText3
                         )
                     }
-                }
-            } else {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .clip(RoundedCornerShape(26.dp))
-                        .background(Color.Black.copy(alpha = 0.30f))
-                        .border(1.dp, GlassBorder, RoundedCornerShape(26.dp))
-                        .clickable(onClick = onOpenSearch)
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = null,
-                        tint = GlassText3,
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        text = "Search videos or folders...",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = GlassText3
-                    )
                 }
             }
         }
@@ -735,7 +745,7 @@ private fun LocalTabBar(
                         Text(
                             text = label,
                             fontSize = 13.sp,
-                            color = if (selectedTab == index) GlassText else GlassText3,
+                            color = if (selectedTab == index) LocalAppTextColor.current else GlassText3,
                             fontWeight = if (selectedTab == index) FontWeight.SemiBold
                             else FontWeight.Medium
                         )
@@ -932,7 +942,7 @@ private fun VideoRow(
                 text = video.displayName,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = GlassText,
+                color = LocalAppTextColor.current,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1093,7 +1103,7 @@ private fun FoldersPane(
                             text = name,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
-                            color = GlassText,
+                            color = LocalAppTextColor.current,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -1158,7 +1168,7 @@ private fun PlaylistsPane(
                         text = "Create your playlist",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
-                        color = GlassText
+                        color = LocalAppTextColor.current
                     )
                 }
             }
@@ -1191,7 +1201,7 @@ private fun PlaylistsPane(
                             text = playlist.name,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Medium,
-                            color = GlassText,
+                            color = LocalAppTextColor.current,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
