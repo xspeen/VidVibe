@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -33,7 +34,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -47,10 +47,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -65,16 +61,12 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PlayArrow
-import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material.icons.outlined.VideoLibrary
-import androidx.compose.material.icons.outlined.ViewList
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -95,10 +87,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -116,7 +106,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -124,23 +113,28 @@ import com.vidvibe.app.data.Playlist
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.ui.components.ClassicLoader
 import com.vidvibe.app.ui.components.DeleteSlideSheet
+import com.vidvibe.app.ui.components.FluidBackground
 import com.vidvibe.app.ui.components.PlaylistNameDialog
 import com.vidvibe.app.ui.components.PlaylistPickerDialog
 import com.vidvibe.app.ui.components.PullToRefresh
 import com.vidvibe.app.ui.components.RoundIconButton
 import com.vidvibe.app.ui.components.SelectionMenu
-import com.vidvibe.app.ui.theme.LocalAppBackground
-import com.vidvibe.app.ui.theme.VidVibeBorder
 import com.vidvibe.app.ui.theme.VidVibeRed
-import com.vidvibe.app.ui.theme.VidVibeSelectionBlue
-import com.vidvibe.app.ui.theme.VidVibeSurface
 import com.vidvibe.app.ui.theme.VidVibeSurface2
-import com.vidvibe.app.ui.theme.VidVibeSurface3
 import com.vidvibe.app.ui.theme.VidVibeText
 import com.vidvibe.app.ui.theme.VidVibeTextSecondary
 import com.vidvibe.app.ui.theme.VidVibeTextTertiary
 import kotlinx.coroutines.launch
 import java.util.Locale
+
+// Palette copied from the supplied prototype.
+private val Ink = Color(0xFF0A0A0C)
+private val GlassSurface = Color(0xFF1C1C21)
+private val GlassText = Color(0xFFF5F5F7)
+private val GlassText2 = Color(0xFFA0A0A8)
+private val GlassText3 = Color(0xFF6B6B75)
+private val GlassBlue = Color(0xFF4E9BFF)
+private val GlassBorder = Color.White.copy(alpha = 0.10f)
 
 @Composable
 fun LocalScreen(
@@ -149,7 +143,6 @@ fun LocalScreen(
     playlists: List<Playlist>,
     onOpenVideo: (List<VideoItem>, Int) -> Unit,
     onRefresh: () -> Unit,
-    onOpenDrawer: () -> Unit,
     onSelectionModeChanged: (Boolean) -> Unit,
     onMoveToTrash: (List<VideoItem>) -> Unit,
     onCreatePlaylist: (String) -> Playlist?,
@@ -157,7 +150,6 @@ fun LocalScreen(
     onDeletePlaylist: (String) -> Unit,
     showToast: (String) -> Unit
 ) {
-    val background = LocalAppBackground.current
     val context = LocalContext.current
     val haptics = LocalHapticFeedback.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -168,7 +160,6 @@ fun LocalScreen(
     var currentTab by rememberSaveable { mutableStateOf(0) }
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
-    var isGridView by rememberSaveable { mutableStateOf(false) }
 
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -274,206 +265,191 @@ fun LocalScreen(
         }
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color(0x1F4E9BFF),
-                        Color.Transparent,
-                        Color(0x1430D158)
-                    )
-                )
-            )
+            .background(Ink)
     ) {
-        LocalTopBar(
-            selectionMode = selectionMode,
-            selectedCount = selectedIds.size,
-            searchOpen = searchOpen,
-            searchQuery = searchQuery,
-            onSearchQueryChange = {
-                searchQuery = it
-                currentTab = 0
-            },
-            onOpenSearch = { searchOpen = true },
-            onCloseSearch = { closeSearch() },
-            onExitSelection = { exitSelection() },
-            onSelectAll = {
-                if (visibleVideos.isEmpty()) return@LocalTopBar
-                if (selectedIds.size == visibleVideos.size) {
-                    exitSelection()
-                } else {
-                    selectionMode = true
-                    selectedIds = visibleVideos.map { it.id }.toSet()
-                    onSelectionModeChanged(true)
-                }
-            },
-            currentTab = currentTab,
-            isGridView = isGridView,
-            onShuffle = {
-                if (videos.size > 1) {
-                    shuffledIds = videos.map { it.id }.shuffled()
-                    showToast("Shuffled")
-                }
-            },
-            onToggleView = { isGridView = !isGridView },
-            onCreatePlaylist = {
-                addAfterCreate = false
-                showCreatePlaylist = true
-            },
-            onOpenDrawer = onOpenDrawer
-        )
+        FluidBackground()
 
-        LocalTabBar(
-            selectedTab = currentTab,
-            onSelect = { selectTab(it) },
-            dimmed = selectionMode
-        )
+        Column(Modifier.fillMaxSize()) {
+            LocalHero(
+                selectionMode = selectionMode,
+                selectedCount = selectedIds.size,
+                searchOpen = searchOpen,
+                searchQuery = searchQuery,
+                onSearchQueryChange = {
+                    searchQuery = it
+                    currentTab = 0
+                },
+                onOpenSearch = { searchOpen = true },
+                onCloseSearch = { closeSearch() },
+                onExitSelection = { exitSelection() },
+                onSelectAll = {
+                    if (visibleVideos.isEmpty()) return@LocalHero
+                    if (selectedIds.size == visibleVideos.size) {
+                        exitSelection()
+                    } else {
+                        selectionMode = true
+                        selectedIds = visibleVideos.map { it.id }.toSet()
+                        onSelectionModeChanged(true)
+                    }
+                },
+                onShuffle = {
+                    if (videos.size > 1) {
+                        shuffledIds = videos.map { it.id }.shuffled()
+                        showToast("Shuffled")
+                    }
+                }
+            )
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .pointerInput(selectionMode, searchOpen, currentTab) {
-                    if (selectionMode || searchOpen) return@pointerInput
-                    var dragTotal = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { dragTotal = 0f },
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            dragTotal += dragAmount
-                        },
-                        onDragEnd = {
-                            when {
-                                dragTotal <= -swipeThreshold && currentTab < 2 ->
-                                    selectTab(currentTab + 1)
-                                dragTotal >= swipeThreshold && currentTab > 0 ->
-                                    selectTab(currentTab - 1)
-                            }
-                            dragTotal = 0f
-                        },
-                        onDragCancel = { dragTotal = 0f }
-                    )
-                }
-        ) {
-            PullToRefresh(
-                onRefresh = {
-                    shuffledIds = null
-                    onRefresh()
-                }
+            LocalTabBar(
+                selectedTab = currentTab,
+                onSelect = { selectTab(it) },
+                dimmed = selectionMode
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .pointerInput(selectionMode, searchOpen, currentTab) {
+                        if (selectionMode || searchOpen) return@pointerInput
+                        var dragTotal = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { dragTotal = 0f },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                dragTotal += dragAmount
+                            },
+                            onDragEnd = {
+                                when {
+                                    dragTotal <= -swipeThreshold && currentTab < 2 ->
+                                        selectTab(currentTab + 1)
+                                    dragTotal >= swipeThreshold && currentTab > 0 ->
+                                        selectTab(currentTab - 1)
+                                }
+                                dragTotal = 0f
+                            },
+                            onDragCancel = { dragTotal = 0f }
+                        )
+                    }
             ) {
-                AnimatedContent(
-                    targetState = currentTab,
-                    transitionSpec = {
-                        if (targetState > initialState) {
-                            (slideInHorizontally(tween(260)) { it / 4 } + fadeIn(tween(180))) togetherWith
-                                (slideOutHorizontally(tween(220)) { -it / 4 } + fadeOut(tween(160)))
+                PullToRefresh(
+                    onRefresh = {
+                        shuffledIds = null
+                        onRefresh()
+                    }
+                ) {
+                    AnimatedContent(
+                        targetState = currentTab,
+                        transitionSpec = {
+                            if (targetState > initialState) {
+                                (slideInHorizontally(tween(260)) { it / 4 } + fadeIn(tween(180))) togetherWith
+                                    (slideOutHorizontally(tween(220)) { -it / 4 } + fadeOut(tween(160)))
+                            } else {
+                                (slideInHorizontally(tween(260)) { -it / 4 } + fadeIn(tween(180))) togetherWith
+                                    (slideOutHorizontally(tween(220)) { it / 4 } + fadeOut(tween(160)))
+                            }
+                        },
+                        label = "local-tab"
+                    ) { tab ->
+                        when (tab) {
+                            0 -> VideosPane(
+                                videos = visibleVideos,
+                                isLoading = isLoading,
+                                isSelectionMode = selectionMode,
+                                selectedIds = selectedIds,
+                                filterLabel = filterLabel,
+                                hasSearch = searchQuery.isNotBlank(),
+                                onClearFilter = {
+                                    folderFilter = null
+                                    playlistFilterId = null
+                                },
+                                onClick = { video ->
+                                    if (selectionMode) {
+                                        toggleSelection(video.id)
+                                    } else {
+                                        val index = visibleVideos.indexOfFirst { it.id == video.id }
+                                        onOpenVideo(visibleVideos, index.coerceAtLeast(0))
+                                    }
+                                },
+                                onLongClick = { video -> enterSelection(video.id) }
+                            )
+                            1 -> FoldersPane(
+                                videos = videos,
+                                onOpenFolder = { folder ->
+                                    folderFilter = folder
+                                    playlistFilterId = null
+                                    currentTab = 0
+                                }
+                            )
+                            2 -> PlaylistsPane(
+                                playlists = playlists,
+                                onCreatePlaylist = {
+                                    addAfterCreate = false
+                                    showCreatePlaylist = true
+                                },
+                                onOpenPlaylist = { playlist ->
+                                    playlistFilterId = playlist.id
+                                    folderFilter = null
+                                    currentTab = 0
+                                },
+                                onDeletePlaylist = { playlistPendingDelete = it }
+                            )
+                        }
+                    }
+                }
+
+                SelectionMenu(
+                    visible = selectionMode && !showDeleteSheet && selectedIds.isNotEmpty(),
+                    onShare = {
+                        shareVideos(context, selectedVideos) { showToast(it) }
+                    },
+                    onAddTo = { showPlaylistPicker = true },
+                    onDelete = { showDeleteSheet = true },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 22.dp)
+                )
+
+                DeleteSlideSheet(
+                    visible = showDeleteSheet,
+                    selectedCount = selectedIds.size,
+                    onDismiss = { showDeleteSheet = false },
+                    onConfirm = {
+                        val items = videos.filter { it.id in selectedIds }
+                        if (items.isEmpty()) {
+                            false
                         } else {
-                            (slideInHorizontally(tween(260)) { -it / 4 } + fadeIn(tween(180))) togetherWith
-                                (slideOutHorizontally(tween(220)) { it / 4 } + fadeOut(tween(160)))
+                            onMoveToTrash(items)
+                            deleteStatusMessage = if (items.size == 1) {
+                                "Moved to Trash"
+                            } else {
+                                "${items.size} videos moved to Trash"
+                            }
+                            true
                         }
                     },
-                    label = "local-tab"
-                ) { tab ->
-                    when (tab) {
-                        0 -> VideosPane(
-                            videos = visibleVideos,
-                            isLoading = isLoading,
-                            isSelectionMode = selectionMode,
-                            selectedIds = selectedIds,
-                            isGridView = isGridView,
-                            filterLabel = filterLabel,
-                            hasSearch = searchQuery.isNotBlank(),
-                            onClearFilter = {
-                                folderFilter = null
-                                playlistFilterId = null
-                            },
-                            onClick = { video ->
-                                if (selectionMode) {
-                                    toggleSelection(video.id)
-                                } else {
-                                    val index = visibleVideos.indexOfFirst { it.id == video.id }
-                                    onOpenVideo(visibleVideos, index.coerceAtLeast(0))
-                                }
-                            },
-                            onLongClick = { video -> enterSelection(video.id) },
-                            onMoreClick = { video -> enterSelection(video.id) }
-                        )
-                        1 -> FoldersPane(
-                            videos = videos,
-                            onOpenFolder = { folder ->
-                                folderFilter = folder
-                                playlistFilterId = null
-                                currentTab = 0
+                    onConfirmed = {
+                        showDeleteSheet = false
+                        val count = selectedIds.size
+                        exitSelection()
+                        showToast(
+                            deleteStatusMessage.ifBlank {
+                                if (count == 1) "Moved to Trash"
+                                else "$count videos moved to Trash"
                             }
                         )
-                        2 -> PlaylistsPane(
-                            playlists = playlists,
-                            onCreatePlaylist = {
-                                addAfterCreate = false
-                                showCreatePlaylist = true
-                            },
-                            onOpenPlaylist = { playlist ->
-                                playlistFilterId = playlist.id
-                                folderFilter = null
-                                currentTab = 0
-                            },
-                            onDeletePlaylist = { playlistPendingDelete = it }
-                        )
-                    }
-                }
+                    },
+                    title = "Move ${selectedIds.size} to Trash?",
+                    description = "Files in Trash haven't been permanently deleted from your device.",
+                    slideLabel = "Slide to Delete ${selectedIds.size} ${
+                        if (selectedIds.size == 1) "file" else "files"
+                    }"
+                )
             }
-
-            SelectionMenu(
-                visible = selectionMode && !showDeleteSheet && selectedIds.isNotEmpty(),
-                onShare = {
-                    shareVideos(context, selectedVideos) { showToast(it) }
-                },
-                onAddTo = { showPlaylistPicker = true },
-                onDelete = { showDeleteSheet = true },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 22.dp)
-            )
-
-            DeleteSlideSheet(
-                visible = showDeleteSheet,
-                selectedCount = selectedIds.size,
-                onDismiss = { showDeleteSheet = false },
-                onConfirm = {
-                    val items = videos.filter { it.id in selectedIds }
-                    if (items.isEmpty()) {
-                        false
-                    } else {
-                        onMoveToTrash(items)
-                        deleteStatusMessage = if (items.size == 1) {
-                            "Moved to Trash"
-                        } else {
-                            "${items.size} videos moved to Trash"
-                        }
-                        true
-                    }
-                },
-                onConfirmed = {
-                    showDeleteSheet = false
-                    val count = selectedIds.size
-                    exitSelection()
-                    showToast(
-                        deleteStatusMessage.ifBlank {
-                            if (count == 1) "Moved to Trash"
-                            else "$count videos moved to Trash"
-                        }
-                    )
-                },
-                title = "Move ${selectedIds.size} to Trash?",
-                description = "Files in Trash haven't been permanently deleted from your device.",
-                slideLabel = "Slide to Delete ${selectedIds.size} ${
-                    if (selectedIds.size == 1) "file" else "files"
-                }"
-            )
         }
     }
 
@@ -548,7 +524,7 @@ fun LocalScreen(
 }
 
 @Composable
-private fun LocalTopBar(
+private fun LocalHero(
     selectionMode: Boolean,
     selectedCount: Int,
     searchOpen: Boolean,
@@ -558,12 +534,7 @@ private fun LocalTopBar(
     onCloseSearch: () -> Unit,
     onExitSelection: () -> Unit,
     onSelectAll: () -> Unit,
-    currentTab: Int,
-    isGridView: Boolean,
-    onShuffle: () -> Unit,
-    onToggleView: () -> Unit,
-    onCreatePlaylist: () -> Unit,
-    onOpenDrawer: () -> Unit
+    onShuffle: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -577,148 +548,129 @@ private fun LocalTopBar(
         }
     }
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .statusBarsPadding()
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xE61C1C21), Color(0xF20A0A0C))
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(Color.White.copy(alpha = 0.10f), Color.White.copy(alpha = 0.06f))
+                ),
+                shape = RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp)
+            )
+            .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(28.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xE61C1C21), Color(0xF20A0A0C))
-                    )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (selectionMode) {
+                RoundIconButton(
+                    onClick = onExitSelection,
+                    icon = Icons.Outlined.Close,
+                    contentDescription = "Exit selection",
+                    tint = GlassText
                 )
-                .border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.18f),
-                            Color.White.copy(alpha = 0.03f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(28.dp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "$selectedCount selected",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = GlassText,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (selectionMode) {
-                    RoundIconButton(
-                        onClick = onExitSelection,
-                        icon = Icons.Outlined.Close,
-                        contentDescription = "Exit selection",
-                        tint = VidVibeText
+                RoundIconButton(
+                    onClick = onSelectAll,
+                    icon = Icons.Outlined.SelectAll,
+                    contentDescription = "Select all",
+                    tint = GlassText
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(16.dp)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "$selectedCount selected",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = VidVibeText,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    RoundIconButton(
-                        onClick = onSelectAll,
-                        icon = Icons.Outlined.SelectAll,
-                        contentDescription = "Select all",
-                        tint = VidVibeText
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(Color.White),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.PlayArrow,
-                            contentDescription = null,
-                            tint = Color.Black,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        text = "VidVibe",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontFamily = FontFamily.Serif,
-                        fontWeight = FontWeight.SemiBold,
-                        color = VidVibeText,
-                        maxLines = 1,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (currentTab == 0) {
-                        GlassIconButton(
-                            onClick = onShuffle,
-                            icon = Icons.Outlined.Shuffle,
-                            contentDescription = "Shuffle videos"
-                        )
-                        Spacer(Modifier.width(4.dp))
-                    }
-                    GlassIconButton(
-                        onClick = onOpenSearch,
-                        icon = Icons.Outlined.Search,
-                        contentDescription = "Search"
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    GlassIconButton(
-                        onClick = onToggleView,
-                        icon = if (isGridView) Icons.Outlined.ViewList
-                        else Icons.Outlined.GridView,
-                        contentDescription = "Change layout"
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    GlassIconButton(
-                        onClick = onCreatePlaylist,
-                        icon = Icons.Outlined.PlaylistAdd,
-                        contentDescription = "Create playlist"
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    GlassIconButton(
-                        onClick = onOpenDrawer,
-                        icon = Icons.Outlined.MoreVert,
-                        contentDescription = "Open menu"
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "VidVibe",
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .border(1.dp, Color.White.copy(alpha = 0.05f), CircleShape)
+                        .clickable(onClick = onShuffle),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Shuffle,
+                        contentDescription = "Shuffle videos",
+                        tint = GlassText,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
+        }
 
-            Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(20.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .clip(RoundedCornerShape(25.dp))
-                    .background(Color.Black.copy(alpha = 0.32f))
-                    .border(
-                        1.dp,
-                        Color.White.copy(alpha = 0.10f),
-                        RoundedCornerShape(25.dp)
+        AnimatedContent(
+            targetState = searchOpen,
+            transitionSpec = {
+                (fadeIn(tween(220)) + scaleIn(initialScale = 0.95f)) togetherWith
+                    (fadeOut(tween(180)) + scaleOut(targetScale = 0.95f))
+            },
+            label = "search-pill"
+        ) { open ->
+            if (open) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .border(1.dp, Color.White.copy(alpha = 0.20f), RoundedCornerShape(26.dp))
+                        .padding(start = 16.dp, end = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = null,
+                        tint = GlassText2,
+                        modifier = Modifier.size(20.dp)
                     )
-                    .padding(horizontal = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = null,
-                    tint = VidVibeTextTertiary,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                if (searchOpen) {
+                    Spacer(Modifier.width(12.dp))
                     BasicTextField(
                         value = searchQuery,
                         onValueChange = onSearchQueryChange,
                         modifier = Modifier
                             .weight(1f)
                             .focusRequester(focusRequester),
-                        textStyle = TextStyle(color = VidVibeText, fontSize = 15.sp),
-                        cursorBrush = SolidColor(VidVibeText),
+                        textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                        cursorBrush = SolidColor(Color.White),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         keyboardActions = KeyboardActions(onSearch = { onCloseSearch() }),
@@ -726,9 +678,9 @@ private fun LocalTopBar(
                             Box {
                                 if (searchQuery.isEmpty()) {
                                     Text(
-                                        text = "Search videos or folders...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = VidVibeTextTertiary
+                                        text = "Search...",
+                                        fontSize = 15.sp,
+                                        color = GlassText3
                                     )
                                 }
                                 inner()
@@ -739,66 +691,46 @@ private fun LocalTopBar(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.14f))
+                            .background(Color.White.copy(alpha = 0.15f))
                             .clickable(onClick = onCloseSearch),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Close,
                             contentDescription = "Close search",
-                            tint = VidVibeText,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                } else {
-                    Text(
-                        text = "Search videos or folders...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = VidVibeTextTertiary,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.10f))
-                            .clickable(onClick = onOpenSearch),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Search,
-                            contentDescription = "Search",
-                            tint = VidVibeTextSecondary,
-                            modifier = Modifier.size(16.dp)
+                            tint = Color.White,
+                            modifier = Modifier.size(12.dp)
                         )
                     }
                 }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(26.dp))
+                        .background(Color.Black.copy(alpha = 0.30f))
+                        .border(1.dp, GlassBorder, RoundedCornerShape(26.dp))
+                        .clickable(onClick = onOpenSearch)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = null,
+                        tint = GlassText3,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "Search videos or folders...",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = GlassText3
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun GlassIconButton(
-    onClick: () -> Unit,
-    icon: ImageVector,
-    contentDescription: String
-) {
-    Box(
-        modifier = Modifier
-            .size(32.dp)
-            .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.10f))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = VidVibeText,
-            modifier = Modifier.size(16.dp)
-        )
     }
 }
 
@@ -812,7 +744,7 @@ private fun LocalTabBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
+            .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)
             .alpha(if (dimmed) 0f else 1f)
     ) {
         BoxWithConstraints(
@@ -820,18 +752,17 @@ private fun LocalTabBar(
                 .fillMaxWidth()
                 .height(44.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xCC1C1C21), Color(0xE60A0A0C))
-                    )
-                )
-                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(22.dp))
+                .background(Color(0x99141419))
+                .border(1.dp, GlassBorder, RoundedCornerShape(22.dp))
                 .padding(4.dp)
         ) {
             val tabWidth = maxWidth / labels.size.toFloat()
             val indicatorOffset by animateDpAsState(
                 targetValue = tabWidth * selectedTab.toFloat(),
-                animationSpec = tween(300),
+                animationSpec = tween(
+                    durationMillis = 350,
+                    easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
+                ),
                 label = "tab-glass"
             )
 
@@ -841,7 +772,7 @@ private fun LocalTabBar(
                     .width(tabWidth)
                     .fillMaxHeight()
                     .clip(RoundedCornerShape(18.dp))
-                    .background(Color.White.copy(alpha = 0.14f))
+                    .background(Color.White.copy(alpha = 0.15f))
                     .border(
                         1.dp,
                         Color.White.copy(alpha = 0.10f),
@@ -860,11 +791,10 @@ private fun LocalTabBar(
                     ) {
                         Text(
                             text = label,
-                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-                            color = if (selectedTab == index) VidVibeText
-                            else VidVibeTextTertiary,
+                            fontSize = 13.sp,
+                            color = if (selectedTab == index) GlassText else GlassText3,
                             fontWeight = if (selectedTab == index) FontWeight.SemiBold
-                            else FontWeight.Normal
+                            else FontWeight.Medium
                         )
                     }
                 }
@@ -879,13 +809,11 @@ private fun VideosPane(
     isLoading: Boolean,
     isSelectionMode: Boolean,
     selectedIds: Set<Long>,
-    isGridView: Boolean,
     filterLabel: String?,
     hasSearch: Boolean,
     onClearFilter: () -> Unit,
     onClick: (VideoItem) -> Unit,
-    onLongClick: (VideoItem) -> Unit,
-    onMoreClick: (VideoItem) -> Unit
+    onLongClick: (VideoItem) -> Unit
 ) {
     if (isLoading && videos.isEmpty()) {
         LoadingPane()
@@ -904,31 +832,18 @@ private fun VideosPane(
         return
     }
 
-    if (isGridView) {
-        VideosGrid(
-            videos = videos,
-            isSelectionMode = isSelectionMode,
-            selectedIds = selectedIds,
-            filterLabel = filterLabel,
-            onClearFilter = onClearFilter,
-            onClick = onClick,
-            onLongClick = onLongClick,
-            onMoreClick = onMoreClick
-        )
-    } else {
-        VideosList(
-            videos = videos,
-            isSelectionMode = isSelectionMode,
-            selectedIds = selectedIds,
-            filterLabel = filterLabel,
-            onClearFilter = onClearFilter,
-            onClick = onClick,
-            onLongClick = onLongClick,
-            onMoreClick = onMoreClick
-        )
-    }
+    VideosList(
+        videos = videos,
+        isSelectionMode = isSelectionMode,
+        selectedIds = selectedIds,
+        filterLabel = filterLabel,
+        onClearFilter = onClearFilter,
+        onClick = onClick,
+        onLongClick = onLongClick
+    )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun VideosList(
     videos: List<VideoItem>,
@@ -937,8 +852,7 @@ private fun VideosList(
     filterLabel: String?,
     onClearFilter: () -> Unit,
     onClick: (VideoItem) -> Unit,
-    onLongClick: (VideoItem) -> Unit,
-    onMoreClick: (VideoItem) -> Unit
+    onLongClick: (VideoItem) -> Unit
 ) {
     val listState = rememberLazyListState()
     val grouped = remember(videos) {
@@ -951,8 +865,9 @@ private fun VideosList(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .widthIn(max = 720.dp)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(bottom = 24.dp)
+                .fillMaxWidth()
+                .fillMaxHeight(),
+            contentPadding = PaddingValues(bottom = 160.dp)
         ) {
             if (filterLabel != null) {
                 item(key = "active-filter") {
@@ -961,7 +876,7 @@ private fun VideosList(
             }
             grouped.forEach { (date, dateVideos) ->
                 item(key = "date-$date") {
-                    DateHeader(date)
+                    DateLabel(date)
                 }
                 items(
                     items = dateVideos,
@@ -973,7 +888,6 @@ private fun VideosList(
                         selected = video.id in selectedIds,
                         onClick = { onClick(video) },
                         onLongClick = { onLongClick(video) },
-                        onMoreClick = { onMoreClick(video) },
                         modifier = Modifier.animateItem()
                     )
                 }
@@ -983,75 +897,13 @@ private fun VideosList(
 }
 
 @Composable
-private fun VideosGrid(
-    videos: List<VideoItem>,
-    isSelectionMode: Boolean,
-    selectedIds: Set<Long>,
-    filterLabel: String?,
-    onClearFilter: () -> Unit,
-    onClick: (VideoItem) -> Unit,
-    onLongClick: (VideoItem) -> Unit,
-    onMoreClick: (VideoItem) -> Unit
-) {
-    val grouped = remember(videos) { videos.groupBy { it.dateLabel } }
-    Box(Modifier.fillMaxSize()) {
-        LazyVerticalGrid(
-            columns = GridCells.Adaptive(minSize = 150.dp),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .widthIn(max = 960.dp)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            if (filterLabel != null) {
-                item(span = { GridItemSpan(maxLineSpan) }, key = "active-filter-grid") {
-                    ActiveFilterRow(label = filterLabel, onClear = onClearFilter)
-                }
-            }
-            grouped.forEach { (date, dateVideos) ->
-                item(
-                    span = { GridItemSpan(maxLineSpan) },
-                    key = "grid-date-$date"
-                ) {
-                    DateHeader(
-                        date,
-                        startPadding = 4.dp,
-                        endPadding = 4.dp
-                    )
-                }
-                items(
-                    items = dateVideos,
-                    key = { it.id }
-                ) { video ->
-                    VideoGridCard(
-                        video = video,
-                        isSelectionMode = isSelectionMode,
-                        selected = video.id in selectedIds,
-                        onClick = { onClick(video) },
-                        onLongClick = { onLongClick(video) },
-                        onMoreClick = { onMoreClick(video) },
-                        modifier = Modifier.animateItem()
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun DateHeader(
-    date: String,
-    modifier: Modifier = Modifier,
-    startPadding: Dp = 16.dp,
-    endPadding: Dp = 16.dp
-) {
+private fun DateLabel(date: String) {
     Text(
         text = date,
-        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-        color = VidVibeTextTertiary,
-        modifier = modifier.padding(start = startPadding, end = endPadding, top = 10.dp, bottom = 4.dp)
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = GlassText3,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)
     )
 }
 
@@ -1063,18 +915,17 @@ private fun VideoRow(
     selected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onMoreClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.985f else 1f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 720f),
+        animationSpec = tween(120),
         label = "video-row-scale"
     )
     val backgroundColor by animateColorAsState(
-        targetValue = if (selected) VidVibeSelectionBlue.copy(alpha = 0.12f) else Color.Transparent,
+        targetValue = if (selected) GlassBlue.copy(alpha = 0.15f) else Ink,
         animationSpec = tween(180),
         label = "video-row-background"
     )
@@ -1082,10 +933,13 @@ private fun VideoRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .padding(bottom = 4.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
+            .clip(RoundedCornerShape(16.dp))
             .background(backgroundColor)
             .combinedClickable(
                 interactionSource = interaction,
@@ -1093,7 +947,7 @@ private fun VideoRow(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .padding(start = 12.dp, end = 6.dp, top = 10.dp, bottom = 10.dp),
+            .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AnimatedVisibility(
@@ -1103,7 +957,7 @@ private fun VideoRow(
         ) {
             SelectionCircle(
                 selected = selected,
-                modifier = Modifier.padding(end = 8.dp)
+                modifier = Modifier.padding(end = 12.dp)
             )
         }
 
@@ -1112,12 +966,7 @@ private fun VideoRow(
                 .width(108.dp)
                 .height(64.dp)
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color(0xFF181920))
-                .border(
-                    1.dp,
-                    Color.White.copy(alpha = 0.07f),
-                    RoundedCornerShape(10.dp)
-                )
+                .background(GlassSurface)
         ) {
             AsyncImage(
                 model = video.uri,
@@ -1133,146 +982,25 @@ private fun VideoRow(
             )
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
 
         Column(Modifier.weight(1f)) {
             Text(
                 text = video.displayName,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-                color = VidVibeText,
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
+                color = GlassText,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = video.dateLabel,
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                color = VidVibeTextTertiary,
+                fontSize = 11.sp,
+                color = GlassText3,
                 maxLines = 1
             )
         }
-
-        if (!isSelectionMode) {
-            IconButton(
-                onClick = onMoreClick,
-                modifier = Modifier.size(36.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.MoreVert,
-                    contentDescription = "Select video",
-                    tint = VidVibeTextTertiary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        } else {
-            Spacer(Modifier.width(8.dp))
-        }
-    }
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-private fun VideoGridCard(
-    video: VideoItem,
-    isSelectionMode: Boolean,
-    selected: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
-    onMoreClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 720f),
-        label = "video-grid-scale"
-    )
-    val backgroundColor by animateColorAsState(
-        targetValue = if (selected) VidVibeSelectionBlue.copy(alpha = 0.12f) else Color.Transparent,
-        animationSpec = tween(180),
-        label = "video-grid-background"
-    )
-
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(RoundedCornerShape(8.dp))
-            .background(backgroundColor)
-            .combinedClickable(
-                interactionSource = interaction,
-                indication = null,
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-            .padding(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .aspectRatio(16f / 9f)
-                .clip(RoundedCornerShape(6.dp))
-                .background(Color(0xFF181920))
-        ) {
-            AsyncImage(
-                model = video.uri,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            DurationChip(
-                duration = video.durationLabel,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(5.dp)
-            )
-            if (isSelectionMode) {
-                SelectionCircle(
-                    selected = selected,
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(6.dp)
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(5.dp)
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.62f))
-                        .clickable(onClick = onMoreClick),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = "Select ${video.displayName}",
-                        tint = Color.White,
-                        modifier = Modifier.size(17.dp)
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(7.dp))
-        Text(
-            text = video.displayName,
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
-            color = VidVibeText,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = video.dateLabel,
-            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-            color = VidVibeTextTertiary,
-            maxLines = 1
-        )
     }
 }
 
@@ -1285,10 +1013,10 @@ private fun SelectionCircle(
         modifier = modifier
             .size(22.dp)
             .clip(CircleShape)
-            .background(if (selected) VidVibeSelectionBlue else Color.Transparent)
+            .background(if (selected) GlassBlue else Color.Transparent)
             .border(
                 width = 2.dp,
-                color = if (selected) VidVibeSelectionBlue else VidVibeTextTertiary,
+                color = if (selected) GlassBlue else GlassText3,
                 shape = CircleShape
             ),
         contentAlignment = Alignment.Center
@@ -1312,13 +1040,15 @@ private fun DurationChip(
     Surface(
         modifier = modifier,
         color = Color.Black.copy(alpha = 0.75f),
-        shape = RoundedCornerShape(2.dp)
+        shape = RoundedCornerShape(4.dp)
     ) {
         Text(
             text = duration,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+            fontSize = 9.sp,
+            fontWeight = FontWeight.SemiBold,
+            fontFamily = FontFamily.Monospace,
             color = Color.White,
-            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
         )
     }
 }
@@ -1335,9 +1065,9 @@ private fun ActiveFilterRow(
         horizontalArrangement = Arrangement.Start
     ) {
         Surface(
-            color = VidVibeSurface2,
+            color = GlassSurface,
             shape = RoundedCornerShape(20.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
+            border = androidx.compose.foundation.BorderStroke(1.dp, GlassBorder)
         ) {
             Row(
                 modifier = Modifier
@@ -1347,14 +1077,15 @@ private fun ActiveFilterRow(
             ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = VidVibeTextSecondary
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = GlassText2
                 )
                 Spacer(Modifier.width(6.dp))
                 Icon(
                     imageVector = Icons.Outlined.Close,
                     contentDescription = "Clear filter",
-                    tint = VidVibeTextSecondary,
+                    tint = GlassText2,
                     modifier = Modifier.size(15.dp)
                 )
             }
@@ -1387,8 +1118,9 @@ private fun FoldersPane(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .widthIn(max = 720.dp)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
+                .fillMaxWidth()
+                .fillMaxHeight(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 160.dp)
         ) {
             items(folders, key = { it.first }) { (name, count) ->
                 Row(
@@ -1402,13 +1134,13 @@ private fun FoldersPane(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(VidVibeSurface2),
+                            .background(GlassSurface),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Folder,
                             contentDescription = null,
-                            tint = VidVibeTextSecondary,
+                            tint = GlassText2,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -1416,21 +1148,22 @@ private fun FoldersPane(
                     Column(Modifier.weight(1f)) {
                         Text(
                             text = name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = VidVibeText,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = GlassText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "$count ${if (count == 1) "item" else "items"}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = VidVibeTextTertiary
+                            fontSize = 12.sp,
+                            color = GlassText3
                         )
                     }
                     Icon(
                         imageVector = Icons.Outlined.ChevronRight,
                         contentDescription = null,
-                        tint = VidVibeTextTertiary,
+                        tint = GlassText3,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -1451,8 +1184,9 @@ private fun PlaylistsPane(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .widthIn(max = 720.dp)
-                .fillMaxWidth(),
-            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
+                .fillMaxWidth()
+                .fillMaxHeight(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 160.dp)
         ) {
             item(key = "create-playlist") {
                 Row(
@@ -1466,21 +1200,22 @@ private fun PlaylistsPane(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(VidVibeSurface2),
+                            .background(GlassSurface),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Add,
                             contentDescription = null,
-                            tint = VidVibeTextSecondary,
+                            tint = GlassText2,
                             modifier = Modifier.size(22.dp)
                         )
                     }
                     Spacer(Modifier.width(14.dp))
                     Text(
                         text = "Create your playlist",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = VidVibeText
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = GlassText
                     )
                 }
             }
@@ -1497,13 +1232,13 @@ private fun PlaylistsPane(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(VidVibeSurface2),
+                            .background(GlassSurface),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.PlaylistPlay,
                             contentDescription = null,
-                            tint = VidVibeTextSecondary,
+                            tint = GlassText2,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -1511,15 +1246,16 @@ private fun PlaylistsPane(
                     Column(Modifier.weight(1f)) {
                         Text(
                             text = playlist.name,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = VidVibeText,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = GlassText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "${playlist.videoIds.size} videos",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = VidVibeTextTertiary
+                            fontSize = 12.sp,
+                            color = GlassText3
                         )
                     }
                     IconButton(
@@ -1529,7 +1265,7 @@ private fun PlaylistsPane(
                         Icon(
                             imageVector = Icons.Outlined.DeleteOutline,
                             contentDescription = "Delete playlist",
-                            tint = VidVibeTextTertiary,
+                            tint = GlassText3,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1550,8 +1286,8 @@ private fun LoadingPane() {
             Spacer(Modifier.height(12.dp))
             Text(
                 text = "Loading videos...",
-                style = MaterialTheme.typography.bodySmall,
-                color = VidVibeTextTertiary
+                fontSize = 12.sp,
+                color = GlassText3
             )
         }
     }
@@ -1575,21 +1311,22 @@ private fun EmptyPane(
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = VidVibeTextTertiary.copy(alpha = 0.55f),
+                        tint = GlassText3.copy(alpha = 0.55f),
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(Modifier.height(16.dp))
                     Text(
                         text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = VidVibeTextSecondary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = GlassText2,
                         textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(6.dp))
                     Text(
                         text = subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = VidVibeTextTertiary,
+                        fontSize = 14.sp,
+                        color = GlassText3,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.widthIn(max = 300.dp)
                     )

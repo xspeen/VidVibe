@@ -2,19 +2,18 @@ package com.vidvibe.app.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -22,11 +21,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Person
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,33 +28,37 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vidvibe.app.ui.theme.VidVibeBorder
-import com.vidvibe.app.ui.theme.VidVibeText
-import com.vidvibe.app.ui.theme.VidVibeTextTertiary
+
+private val NavBlue = Color(0xFF4E9BFF)
+
+private enum class NavGlyph { Local, Downloader, Trash, Me }
 
 private data class NavDestination(
     val label: String,
-    val icon: ImageVector
+    val glyph: NavGlyph
 )
 
 private val destinations = listOf(
-    NavDestination("Local", Icons.Outlined.Home),
-    NavDestination("Downloader", Icons.Outlined.Download),
-    NavDestination("Me", Icons.Outlined.Person)
+    NavDestination("Local", NavGlyph.Local),
+    NavDestination("Downloader", NavGlyph.Downloader),
+    NavDestination("Trash", NavGlyph.Trash),
+    NavDestination("Me", NavGlyph.Me)
 )
 
 @Composable
@@ -70,53 +68,48 @@ fun CustomBottomNav(
     liquidGlass: Boolean,
     modifier: Modifier = Modifier
 ) {
-    if (liquidGlass) {
-        LiquidGlassNav(
-            selectedIndex = selectedIndex,
-            onSelect = onSelect,
-            modifier = modifier
-        )
-    } else {
-        SolidNav(
-            selectedIndex = selectedIndex,
-            onSelect = onSelect,
-            modifier = modifier
-        )
-    }
-}
-
-@Composable
-private fun SolidNav(
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .drawBehind {
-                drawLine(
-                    color = VidVibeBorder,
-                    start = Offset.Zero,
-                    end = Offset(size.width, 0f),
-                    strokeWidth = 1.dp.toPx()
-                )
-            }
-            .background(SolidColor(Color(0xFF08080A)))
             .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 24.dp)
     ) {
+        val shape = RoundedCornerShape(32.dp)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly
+                .height(76.dp)
+                .clip(shape)
+                .then(
+                    if (liquidGlass) {
+                        Modifier.background(
+                            Brush.verticalGradient(
+                                listOf(Color(0xB3141419), Color(0x99141419))
+                            )
+                        )
+                    } else {
+                        Modifier.background(Color(0xF208080A))
+                    }
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.22f),
+                            Color.White.copy(alpha = 0.08f)
+                        )
+                    ),
+                    shape = shape
+                )
+                .padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             destinations.forEachIndexed { index, destination ->
-                NavCell(
+                NavItem(
                     destination = destination,
                     selected = selectedIndex == index,
-                    onClick = { onSelect(index) },
-                    modifier = Modifier.weight(1f)
+                    onClick = { onSelect(index) }
                 )
             }
         }
@@ -124,212 +117,170 @@ private fun SolidNav(
 }
 
 @Composable
-private fun LiquidGlassNav(
-    selectedIndex: Int,
-    onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val density = LocalDensity.current
-    val dragThreshold = with(density) { 46.dp.toPx() }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-    ) {
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-        ) {
-            val cellWidth = maxWidth / destinations.size.toFloat()
-            val progress by animateFloatAsState(
-                targetValue = selectedIndex.toFloat(),
-                animationSpec = spring(
-                    dampingRatio = 0.62f,
-                    stiffness = 360f
-                ),
-                label = "liquid-nav-progress"
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0xE6222530),
-                                Color(0xF20A0B10)
-                            )
-                        )
-                    )
-                    .border(
-                        width = 1.dp,
-                        brush = Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.22f),
-                                Color.White.copy(alpha = 0.04f)
-                            )
-                        ),
-                        shape = RoundedCornerShape(24.dp)
-                    )
-                    .pointerInput(selectedIndex) {
-                        var dragTotal = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { dragTotal = 0f },
-                            onHorizontalDrag = { change, dragAmount ->
-                                change.consume()
-                                dragTotal += dragAmount
-                            },
-                            onDragEnd = {
-                                when {
-                                    dragTotal <= -dragThreshold ->
-                                        onSelect((selectedIndex + 1).coerceAtMost(destinations.lastIndex))
-                                    dragTotal >= dragThreshold ->
-                                        onSelect((selectedIndex - 1).coerceAtLeast(0))
-                                }
-                                dragTotal = 0f
-                            },
-                            onDragCancel = { dragTotal = 0f }
-                        )
-                    }
-            ) {
-                // Soft liquid glow that trails the selected cell.
-                Box(
-                    modifier = Modifier
-                        .width(cellWidth)
-                        .fillMaxHeight()
-                        .padding(horizontal = 9.dp, vertical = 11.dp)
-                        .graphicsLayer {
-                            translationX = progress * cellWidth.toPx()
-                            alpha = 0.62f
-                        }
-                        .blur(18.dp)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.36f),
-                                    Color(0xFF82B1FF).copy(alpha = 0.28f)
-                                )
-                            ),
-                            RoundedCornerShape(20.dp)
-                        )
-                )
-
-                // Glass capsule that glides between tabs.
-                Box(
-                    modifier = Modifier
-                        .width(cellWidth)
-                        .fillMaxHeight()
-                        .graphicsLayer {
-                            translationX = progress * cellWidth.toPx()
-                        }
-                        .padding(horizontal = 6.dp, vertical = 6.dp)
-                        .clip(RoundedCornerShape(19.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.20f),
-                                    Color.White.copy(alpha = 0.045f)
-                                )
-                            )
-                        )
-                        .border(
-                            width = 1.dp,
-                            brush = Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.34f),
-                                    Color.White.copy(alpha = 0.06f)
-                                )
-                            ),
-                            shape = RoundedCornerShape(19.dp)
-                        )
-                )
-
-                // Specular highlight along the top edge.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .padding(horizontal = 20.dp)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(
-                                    Color.Transparent,
-                                    Color.White.copy(alpha = 0.32f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    destinations.forEachIndexed { index, destination ->
-                        NavCell(
-                            destination = destination,
-                            selected = selectedIndex == index,
-                            onClick = { onSelect(index) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NavCell(
+private fun NavItem(
     destination: NavDestination,
     selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    onClick: () -> Unit
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val iconScale by animateFloatAsState(
-        targetValue = if (selected) 1.08f else 0.94f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = 620f),
-        label = "nav-icon-scale"
+    val density = LocalDensity.current
+    val lift by animateFloatAsState(
+        targetValue = if (selected) -2f else 0f,
+        animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f),
+        label = "nav-lift"
     )
-    val labelAlpha by animateFloatAsState(
-        targetValue = if (selected) 1f else 0.52f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
-        label = "nav-label-alpha"
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.5f,
+        animationSpec = tween(300),
+        label = "nav-alpha"
     )
+    val liftPx = with(density) { lift.dp.toPx() }
 
     Column(
-        modifier = modifier
+        modifier = Modifier
+            .width(64.dp)
             .fillMaxHeight()
             .clickable(
-                interactionSource = interaction,
+                interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
             ),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = destination.icon,
-            contentDescription = destination.label,
-            tint = if (selected) VidVibeText else VidVibeTextTertiary,
+        NavGlyph(
+            glyph = destination.glyph,
+            selected = selected,
             modifier = Modifier
-                .size(23.dp)
+                .size(22.dp)
                 .graphicsLayer {
-                    scaleX = iconScale
-                    scaleY = iconScale
+                    translationY = liftPx
+                    alpha = contentAlpha
                 }
         )
-        Spacer(Modifier.height(3.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             text = destination.label,
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-            color = if (selected) VidVibeText else VidVibeTextTertiary,
-            modifier = Modifier.graphicsLayer { alpha = labelAlpha }
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.2.sp
+            ),
+            color = if (selected) Color.White else Color.White.copy(alpha = 0.5f)
         )
+    }
+}
+
+@Composable
+private fun NavGlyph(
+    glyph: NavGlyph,
+    selected: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val color = if (selected) NavBlue else Color.White
+    Canvas(modifier) {
+        val s = size.minDimension / 24f
+        val w = 1.8f * s
+        val stroke = Stroke(
+            width = w,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round
+        )
+        fun o(x: Float, y: Float) = Offset(x * s, y * s)
+
+        when (glyph) {
+            NavGlyph.Local -> {
+                drawRoundRect(
+                    color = color,
+                    topLeft = o(3f, 5f),
+                    size = Size(18f * s, 14f * s),
+                    cornerRadius = CornerRadius(3f * s, 3f * s),
+                    style = stroke
+                )
+                drawLine(color, o(3f, 10f), o(21f, 10f), strokeWidth = w, cap = StrokeCap.Round)
+                drawLine(color, o(3f, 14f), o(21f, 14f), strokeWidth = w, cap = StrokeCap.Round)
+                val triangle = Path().apply {
+                    moveTo(10f * s, 9f * s)
+                    lineTo(15f * s, 12f * s)
+                    lineTo(10f * s, 15f * s)
+                    close()
+                }
+                drawPath(triangle, color = NavBlue)
+            }
+
+            NavGlyph.Downloader -> {
+                drawLine(color, o(12f, 3f), o(12f, 15f), strokeWidth = w, cap = StrokeCap.Round)
+                drawLine(color, o(7f, 10f), o(12f, 15f), strokeWidth = w, cap = StrokeCap.Round)
+                drawLine(color, o(12f, 15f), o(17f, 10f), strokeWidth = w, cap = StrokeCap.Round)
+                drawLine(color, o(5f, 20f), o(19f, 20f), strokeWidth = w, cap = StrokeCap.Round)
+                val tray = Path().apply {
+                    moveTo(7f * s, 20f * s)
+                    lineTo(7f * s, 18f * s)
+                    quadraticBezierTo(7f * s, 16f * s, 9f * s, 16f * s)
+                    lineTo(15f * s, 16f * s)
+                    quadraticBezierTo(17f * s, 16f * s, 17f * s, 18f * s)
+                    lineTo(17f * s, 20f * s)
+                }
+                drawPath(
+                    path = tray,
+                    color = color,
+                    style = Stroke(
+                        width = w,
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round,
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(2f * s, 4f * s),
+                            0f
+                        )
+                    )
+                )
+            }
+
+            NavGlyph.Trash -> {
+                drawLine(color, o(3f, 6f), o(21f, 6f), strokeWidth = w, cap = StrokeCap.Round)
+                val body = Path().apply {
+                    moveTo(19f * s, 6f * s)
+                    lineTo(19f * s, 20f * s)
+                    quadraticBezierTo(19f * s, 22f * s, 17f * s, 22f * s)
+                    lineTo(7f * s, 22f * s)
+                    quadraticBezierTo(5f * s, 22f * s, 5f * s, 20f * s)
+                    lineTo(5f * s, 6f * s)
+                }
+                drawPath(body, color = color, style = stroke)
+                val lid = Path().apply {
+                    moveTo(8f * s, 6f * s)
+                    lineTo(8f * s, 4f * s)
+                    quadraticBezierTo(8f * s, 2f * s, 10f * s, 2f * s)
+                    lineTo(14f * s, 2f * s)
+                    quadraticBezierTo(16f * s, 2f * s, 16f * s, 4f * s)
+                    lineTo(16f * s, 6f * s)
+                }
+                drawPath(lid, color = color, style = stroke)
+                drawLine(color, o(10f, 11f), o(10f, 17f), strokeWidth = w, cap = StrokeCap.Round)
+                drawLine(color, o(14f, 11f), o(14f, 17f), strokeWidth = w, cap = StrokeCap.Round)
+            }
+
+            NavGlyph.Me -> {
+                drawCircle(
+                    color = color,
+                    radius = 3.5f * s,
+                    center = o(12f, 8f),
+                    style = stroke
+                )
+                val body = Path().apply {
+                    moveTo(5.5f * s, 20f * s)
+                    cubicTo(
+                        5.5f * s, 16.5f * s,
+                        8f * s, 14.5f * s,
+                        12f * s, 14.5f * s
+                    )
+                    cubicTo(
+                        16f * s, 14.5f * s,
+                        18.5f * s, 16.5f * s,
+                        18.5f * s, 20f * s
+                    )
+                }
+                drawPath(body, color = color, style = stroke)
+            }
+        }
     }
 }

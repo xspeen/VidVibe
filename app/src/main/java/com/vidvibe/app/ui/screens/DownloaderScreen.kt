@@ -10,6 +10,7 @@ import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -47,6 +48,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentPaste
@@ -54,6 +56,7 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Button
@@ -79,6 +82,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -86,16 +90,19 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
 import com.vidvibe.app.data.AppSettings
 import com.vidvibe.app.ui.components.RoundIconButton
 import com.vidvibe.app.ui.theme.LocalAppBackground
@@ -171,9 +178,9 @@ fun DownloaderScreen(
         showQuality = true
     }
 
-    fun pasteFromClipboard() {
+    fun clipboardText(): String {
         val manager = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-        val pasted = manager
+        return manager
             ?.primaryClip
             ?.takeIf { it.itemCount > 0 }
             ?.getItemAt(0)
@@ -181,11 +188,6 @@ fun DownloaderScreen(
             ?.toString()
             ?.trim()
             .orEmpty()
-        if (pasted.isBlank()) {
-            showToast("Clipboard is empty")
-        } else {
-            link = pasted
-        }
     }
 
     BackHandler(enabled = showQuality) { showQuality = false }
@@ -201,275 +203,58 @@ fun DownloaderScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
+                .verticalScroll(rememberScrollState())
+                .imePadding()
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = "Downloader",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = VidVibeText,
-                    modifier = Modifier.weight(1f)
-                )
-                RoundIconButton(
-                    onClick = { showQuality = link.isNotBlank(); if (link.isBlank()) showToast("Paste a video link first") },
-                    icon = Icons.Outlined.Info,
-                    contentDescription = "Download options"
-                )
-            }
+            DownloadHero()
 
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .imePadding()
-                    .padding(horizontal = 20.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
                 Text(
-                    text = "Paste a link from a social platform. VidVibe downloads the " +
-                        "video and saves it to your gallery.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = VidVibeTextSecondary,
-                    modifier = Modifier.widthIn(max = 560.dp)
+                    text = "Paste Link",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFFA0A0A8),
+                    letterSpacing = 0.2.sp,
+                    modifier = Modifier.padding(start = 4.dp)
                 )
-
-                Spacer(Modifier.height(18.dp))
-
-                Surface(
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(18.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 640.dp)
-                ) {
-                    Column(Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Outlined.Link,
-                                contentDescription = null,
-                                tint = VidVibeTextTertiary,
-                                modifier = Modifier.size(17.dp)
-                            )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "VIDEO LINK",
-                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                color = VidVibeTextTertiary,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable { pasteFromClipboard() }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.ContentPaste,
-                                    contentDescription = null,
-                                    tint = VidVibeAccentRed,
-                                    modifier = Modifier.size(15.dp)
-                                )
-                                Spacer(Modifier.width(5.dp))
-                                Text(
-                                    text = "Paste",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = VidVibeAccentRed
-                                )
+                Spacer(Modifier.height(12.dp))
+                DownloadLinkInput(
+                    link = link,
+                    onLinkChange = { link = it.trimStart() },
+                    onPaste = {
+                        val pasted = clipboardText()
+                        when {
+                            pasted.isNotBlank() -> {
+                                link = pasted
+                                beginDownload()
                             }
+                            link.isNotBlank() -> beginDownload()
+                            else -> showToast("Clipboard is empty")
                         }
-
-                        Spacer(Modifier.height(10.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(Color(0xFF13141A), RoundedCornerShape(12.dp))
-                                .border(1.dp, VidVibeBorder, RoundedCornerShape(12.dp))
-                                .padding(horizontal = 12.dp, vertical = 13.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            BasicTextField(
-                                value = link,
-                                onValueChange = { link = it.trimStart() },
-                                modifier = Modifier.weight(1f),
-                                textStyle = TextStyle(
-                                    color = VidVibeText,
-                                    fontSize = 14.sp,
-                                    fontFamily = MaterialTheme.typography.bodyMedium.fontFamily
-                                ),
-                                cursorBrush = SolidColor(VidVibeAccentRed),
-                                maxLines = 4,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Uri,
-                                    imeAction = ImeAction.Go
-                                ),
-                                keyboardActions = KeyboardActions(onGo = { beginDownload() }),
-                                decorationBox = { inner ->
-                                    Box {
-                                        if (link.isEmpty()) {
-                                            Text(
-                                                text = "https://...",
-                                                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
-                                                color = VidVibeTextTertiary
-                                            )
-                                        }
-                                        inner()
-                                    }
-                                }
-                            )
-                            if (link.isNotEmpty()) {
-                                Spacer(Modifier.width(6.dp))
-                                Icon(
-                                    imageVector = Icons.Outlined.Close,
-                                    contentDescription = "Clear link",
-                                    tint = VidVibeTextTertiary,
-                                    modifier = Modifier
-                                        .size(18.dp)
-                                        .clickable {
-                                            link = ""
-                                            if (downloadState !is DownloadState.Running) {
-                                                onResetDownload()
-                                            }
-                                        }
-                                )
-                            }
+                    },
+                    onClear = {
+                        link = ""
+                        if (downloadState !is DownloadState.Running) {
+                            onResetDownload()
                         }
-
-                        if (host.isNotBlank()) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = "Source: $host",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = VidVibeTextTertiary
-                            )
-                        }
-                    }
+                    },
+                    onGo = { beginDownload() }
+                )
+                if (host.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "Source: $host",
+                        fontSize = 11.sp,
+                        color = Color(0xFF6B6B75),
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
                 }
-
-                Spacer(Modifier.height(14.dp))
-
-                Surface(
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 640.dp)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onWifiOnlyChange(!settings.wifiOnly) }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Wifi,
-                            contentDescription = null,
-                            tint = VidVibeTextSecondary,
-                            modifier = Modifier.size(21.dp)
-                        )
-                        Spacer(Modifier.width(13.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = "Wi-Fi only",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = VidVibeText,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "Block downloads on mobile data",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = VidVibeTextTertiary
-                            )
-                        }
-                        Switch(
-                            checked = settings.wifiOnly,
-                            onCheckedChange = { onWifiOnlyChange(it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.White,
-                                checkedTrackColor = VidVibeRed,
-                                uncheckedThumbColor = VidVibeTextSecondary,
-                                uncheckedTrackColor = VidVibeSurface3,
-                                uncheckedBorderColor = VidVibeBorder
-                            )
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(14.dp))
-
-                Surface(
-                    color = VidVibeSurface2,
-                    shape = RoundedCornerShape(16.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .widthIn(max = 640.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(42.dp)
-                                .background(VidVibeSurface3, RoundedCornerShape(11.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.VideoLibrary,
-                                contentDescription = null,
-                                tint = VidVibeTextSecondary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(13.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                text = "Saved to Movies/VidVibe",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = VidVibeText,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = "Video and audio are combined on your device, so " +
-                                    "saved files play smoothly in any gallery app.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = VidVibeTextTertiary
-                            )
-                        }
-                    }
-                }
-
                 Spacer(Modifier.height(120.dp))
             }
-        }
-
-        AnimatedVisibility(
-            visible = link.isNotBlank() &&
-                !showQuality &&
-                downloadState is DownloadState.Idle,
-            enter = scaleIn(
-                initialScale = 0.4f,
-                animationSpec = spring(dampingRatio = 0.55f, stiffness = 500f)
-            ) + fadeIn(tween(160)),
-            exit = fadeOut(tween(140)),
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(end = 20.dp, bottom = 22.dp)
-        ) {
-            BouncingDownloadFab(onClick = { beginDownload() })
         }
 
         AnimatedVisibility(
@@ -517,36 +302,227 @@ fun DownloaderScreen(
 }
 
 @Composable
-private fun BouncingDownloadFab(onClick: () -> Unit) {
-    val transition = rememberInfiniteTransition(label = "download-fab")
-    val lift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = -9f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(820, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "download-fab-lift"
-    )
-
+private fun DownloadHero() {
     Box(
         modifier = Modifier
-            .graphicsLayer { translationY = lift.dp.toPx() }
-            .size(64.dp)
-            .shadow(18.dp, CircleShape)
-            .background(
-                Brush.linearGradient(listOf(VidVibeAccentRed, Color(0xFFB71C1C))),
-                CircleShape
-            )
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(top = 8.dp)
     ) {
-        Icon(
-            imageVector = Icons.Outlined.Download,
-            contentDescription = "Download video",
-            tint = Color.White,
-            modifier = Modifier.size(28.dp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(184.dp)
+                .clip(RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFF3A2416), Color(0xFF0A0A0C))
+                    )
+                )
+        ) {
+            AsyncImage(
+                model = "https://iili.io/nteYKe1.jpg",
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0x66000000),
+                                Color.Transparent,
+                                Color(0xE60A0A0C)
+                            )
+                        )
+                    )
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = 20.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.White),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.PlayArrow,
+                        contentDescription = null,
+                        tint = Color.Black,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = "VidVibe",
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+            }
+            Text(
+                text = "Paste a link to download",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 20.dp, end = 20.dp, bottom = 16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun DownloadLinkInput(
+    link: String,
+    onLinkChange: (String) -> Unit,
+    onPaste: () -> Unit,
+    onClear: () -> Unit,
+    onGo: () -> Unit
+) {
+    var focused by remember { mutableStateOf(false) }
+    val active = focused || link.isNotEmpty()
+
+    val elevator = rememberInfiniteTransition(label = "elevator")
+    val t by elevator.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 1500
+                0f at 0
+                0.4f at 600
+                0.41f at 610
+                0.7f at 1050
+                1f at 1500
+            }
+        ),
+        label = "elevator-t"
+    )
+    val elevatorOffset = when {
+        t < 0.4f -> -20f * (t / 0.4f)
+        t < 0.41f -> 20f
+        t < 0.7f -> 20f * (1f - (t - 0.41f) / 0.29f)
+        else -> 0f
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xCC14141A), Color(0xB30A0A0C))
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(
+                        if (active) Color(0xFF4E9BFF)
+                        else Color.White.copy(alpha = 0.18f),
+                        if (active) Color(0x994E9BFF)
+                        else Color.White.copy(alpha = 0.06f)
+                    )
+                ),
+                shape = RoundedCornerShape(20.dp)
+            )
+            .padding(start = 16.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier.size(20.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .graphicsLayer { translationY = elevatorOffset.dp.toPx() }
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ArrowUpward,
+                    contentDescription = null,
+                    tint = if (active) Color(0xFF4E9BFF) else Color(0xFF6B6B75),
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+        Spacer(Modifier.width(12.dp))
+        BasicTextField(
+            value = link,
+            onValueChange = onLinkChange,
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged { focused = it.isFocused },
+            textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
+            cursorBrush = SolidColor(Color(0xFF4E9BFF)),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Uri,
+                imeAction = ImeAction.Go
+            ),
+            keyboardActions = KeyboardActions(onGo = { onGo() }),
+            decorationBox = { inner ->
+                Box {
+                    if (link.isEmpty()) {
+                        Text(
+                            text = "https://www.instagram.com/reel/...",
+                            fontSize = 14.sp,
+                            color = Color(0xFF6B6B75),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    inner()
+                }
+            }
         )
+        if (link.isNotEmpty()) {
+            Box(
+                modifier = Modifier
+                    .padding(start = 6.dp)
+                    .size(22.dp)
+                    .clip(CircleShape)
+                    .clickable(onClick = onClear),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Close,
+                    contentDescription = "Clear link",
+                    tint = Color(0xFFA0A0A8),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Box(
+            modifier = Modifier
+                .height(36.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(Color.White)
+                .clickable(onClick = onPaste)
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "Paste",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
+        }
     }
 }
 

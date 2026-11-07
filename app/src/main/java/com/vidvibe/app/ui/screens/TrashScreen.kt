@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -56,9 +57,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -131,68 +134,109 @@ fun TrashScreen(
             .background(background)
     ) {
         Column(Modifier.fillMaxSize()) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .height(56.dp)
-                    .padding(horizontal = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RoundIconButton(
-                    onClick = {
-                        if (selectionActive) clearSelection() else onBack()
-                    },
-                    icon = if (selectionActive) Icons.Outlined.Check else Icons.Outlined.ArrowBack,
-                    contentDescription = if (selectionActive) "Done selecting" else "Back",
-                    tint = VidVibeText
-                )
-                Spacer(Modifier.width(2.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = if (selectionActive) {
-                            "${selectedIds.size} selected"
-                        } else {
-                            "Trash"
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                        color = VidVibeText,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    .clip(
+                        RoundedCornerShape(
+                            bottomStart = 40.dp,
+                            bottomEnd = 40.dp
+                        )
                     )
-                    if (!selectionActive && items.isNotEmpty()) {
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xE61C1C21), Color(0xF20A0A0C))
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = 0.10f),
+                        RoundedCornerShape(
+                            bottomStart = 40.dp,
+                            bottomEnd = 40.dp
+                        )
+                    )
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (selectionActive) {
+                        RoundIconButton(
+                            onClick = { clearSelection() },
+                            icon = Icons.Outlined.Check,
+                            contentDescription = "Done selecting",
+                            tint = VidVibeText
+                        )
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "${items.size} ${if (items.size == 1) "video" else "videos"} · ${formatFileSize(items.sumOf { it.sizeBytes })}",
-                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                            color = VidVibeTextTertiary
+                            text = "${selectedIds.size} selected",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = VidVibeText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        RoundIconButton(
+                            onClick = {
+                                selectedIds = if (selectedIds.size == items.size) {
+                                    emptySet()
+                                } else {
+                                    items.map { it.id }.toSet()
+                                }
+                            },
+                            icon = Icons.Outlined.SelectAll,
+                            contentDescription = "Select all",
+                            tint = VidVibeText
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.Black,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = "VidVibe",
+                            fontFamily = FontFamily.Serif,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = VidVibeText,
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
 
-                if (selectionActive) {
-                    RoundIconButton(
-                        onClick = {
-                            selectedIds = if (selectedIds.size == items.size) {
-                                emptySet()
-                            } else {
-                                items.map { it.id }.toSet()
-                            }
-                        },
-                        icon = Icons.Outlined.SelectAll,
-                        contentDescription = "Select all",
-                        tint = VidVibeText
+                if (!selectionActive) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "Trash",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        color = VidVibeText,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
-                } else if (items.isNotEmpty()) {
-                    RestoreAllButton(
-                        onClick = {
-                            val ids = items.map { it.id }.toSet()
-                            onRestore(ids)
-                            showToast(
-                                if (ids.size == 1) "Video restored"
-                                else "${ids.size} videos restored"
-                            )
-                        }
-                    )
+                    if (items.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "${items.size} ${if (items.size == 1) "video" else "videos"} · ${formatFileSize(items.sumOf { it.sizeBytes })}",
+                            fontSize = 11.sp,
+                            color = VidVibeTextTertiary,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
 
@@ -207,7 +251,7 @@ fun TrashScreen(
                         start = 8.dp,
                         end = 8.dp,
                         top = 4.dp,
-                        bottom = if (selectionActive) 104.dp else 24.dp
+                        bottom = if (selectionActive) 104.dp else 160.dp
                     )
                 ) {
                     items(items, key = { it.id }) { item ->

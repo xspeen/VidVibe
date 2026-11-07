@@ -255,14 +255,14 @@ private fun MeHome(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
-                    .padding(horizontal = 8.dp),
+                    .padding(start = 20.dp, end = 20.dp, top = 24.dp, bottom = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Spacer(Modifier.width(12.dp))
                 Text(
                     text = "Me",
-                    style = MaterialTheme.typography.titleLarge,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = (-0.5).sp,
                     color = VidVibeText,
                     modifier = Modifier.weight(1f)
                 )
@@ -278,7 +278,7 @@ private fun MeHome(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
                     .navigationBarsPadding()
-                    .padding(horizontal = 16.dp)
+                    .padding(horizontal = 20.dp)
             ) {
                 ProfileCard(
                     videoCount = videoCount,
