@@ -4,20 +4,15 @@ import android.content.IntentSender
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,7 +21,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -37,22 +31,20 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.DeleteForever
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Restore
-import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,24 +65,32 @@ import com.vidvibe.app.data.TrashedVideo
 import com.vidvibe.app.data.formatDuration
 import com.vidvibe.app.data.formatFileSize
 import com.vidvibe.app.data.formatVideoDate
-import com.vidvibe.app.ui.components.DeleteSlideSheet
-import com.vidvibe.app.ui.components.RoundIconButton
+import com.vidvibe.app.ui.components.FloatingMenuColor
+import com.vidvibe.app.ui.components.FloatingMenuContext
+import com.vidvibe.app.ui.components.FloatingMenuState
+import com.vidvibe.app.ui.components.FloatingPanel
+import com.vidvibe.app.ui.components.VidVibeFloatingMenu
 import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.theme.VidVibeBorder
 import com.vidvibe.app.ui.theme.VidVibeGreen
-import com.vidvibe.app.ui.theme.VidVibeRed
 import com.vidvibe.app.ui.theme.VidVibeRedSoft
 import com.vidvibe.app.ui.theme.VidVibeSelectionBlue
 import com.vidvibe.app.ui.theme.VidVibeSurface2
-import com.vidvibe.app.ui.theme.VidVibeSurface3
 import com.vidvibe.app.ui.theme.VidVibeText
 import com.vidvibe.app.ui.theme.VidVibeTextSecondary
 import com.vidvibe.app.ui.theme.VidVibeTextTertiary
+import kotlinx.coroutines.launch
+
+private enum class TrashAction {
+    Restore,
+    Delete
+}
 
 @Composable
 fun TrashScreen(
     items: List<TrashedVideo>,
     onBack: () -> Unit,
+    onSelectionModeChanged: (Boolean) -> Unit,
     onRestore: (Set<Long>) -> Unit,
     onDeletePermanently: suspend (Set<Long>) -> DeleteResult,
     onLaunchDeleteConfirmation: (IntentSender) -> Unit,
@@ -98,34 +98,105 @@ fun TrashScreen(
 ) {
     val background = LocalAppBackground.current
     val haptics = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+    val menu = remember { FloatingMenuState() }
 
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var showDeleteSheet by remember { mutableStateOf(false) }
-    var deleteStatusMessage by remember { mutableStateOf("") }
+    var pendingAction by remember { mutableStateOf(TrashAction.Restore) }
 
     val selectionActive = selectedIds.isNotEmpty()
+
+    LaunchedEffect(selectionActive) {
+        onSelectionModeChanged(selectionActive)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onSelectionModeChanged(false) }
+    }
 
     LaunchedEffect(items) {
         val available = items.map { it.id }.toSet()
         if (!available.containsAll(selectedIds)) {
             selectedIds = selectedIds.intersect(available)
+            if (selectedIds.isEmpty()) menu.hide()
         }
     }
 
     fun clearSelection() {
         selectedIds = emptySet()
-        showDeleteSheet = false
+        menu.hide()
     }
 
-    fun toggle(id: Long) {
-        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+    fun enterSelection(id: Long) {
+        selectedIds = selectedIds + id
+        pendingAction = TrashAction.Restore
+        menu.openActions(FloatingMenuContext.Trash)
         haptics.performHapticFeedback(
-            androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+            androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress
         )
     }
 
+    fun toggle(id: Long) {
+        val updated = if (id in selectedIds) selectedIds - id else selectedIds + id
+        selectedIds = updated
+        haptics.performHapticFeedback(
+            androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove
+        )
+        if (updated.isEmpty()) {
+            menu.hide()
+        } else if (menu.panel == FloatingPanel.Hidden) {
+            menu.openActions(FloatingMenuContext.Trash)
+        }
+    }
+
+    fun finishRestore() {
+        val ids = selectedIds
+        if (ids.isEmpty()) {
+            menu.hide()
+            return
+        }
+        onRestore(ids)
+        clearSelection()
+        showToast(if (ids.size == 1) "Video restored" else "${ids.size} videos restored")
+    }
+
+    fun finishDelete() {
+        val ids = selectedIds
+        if (ids.isEmpty()) {
+            menu.hide()
+            return
+        }
+        scope.launch {
+            when (val result = onDeletePermanently(ids)) {
+                DeleteResult.Deleted -> {
+                    clearSelection()
+                    showToast(
+                        if (ids.size == 1) "Video deleted permanently"
+                        else "${ids.size} videos deleted permanently"
+                    )
+                }
+
+                is DeleteResult.NeedsConfirmation -> {
+                    menu.hide()
+                    onLaunchDeleteConfirmation(result.intentSender)
+                    showToast("Confirm deletion in the system dialog")
+                }
+
+                is DeleteResult.Failed -> {
+                    menu.hide()
+                    showToast(result.message)
+                }
+            }
+        }
+    }
+
     BackHandler(enabled = true) {
-        if (selectionActive) clearSelection() else onBack()
+        when {
+            menu.success -> Unit
+            menu.panel != FloatingPanel.Hidden -> menu.hide()
+            selectionActive -> clearSelection()
+            else -> onBack()
+        }
     }
 
     Box(
@@ -160,84 +231,41 @@ fun TrashScreen(
                     .padding(horizontal = 20.dp, vertical = 24.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (selectionActive) {
-                        RoundIconButton(
-                            onClick = { clearSelection() },
-                            icon = Icons.Outlined.Check,
-                            contentDescription = "Done selecting",
-                            tint = VidVibeText
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = "${selectedIds.size} selected",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = VidVibeText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        RoundIconButton(
-                            onClick = {
-                                selectedIds = if (selectedIds.size == items.size) {
-                                    emptySet()
-                                } else {
-                                    items.map { it.id }.toSet()
-                                }
-                            },
-                            icon = Icons.Outlined.SelectAll,
-                            contentDescription = "Select all",
-                            tint = VidVibeText
-                        )
-                    } else {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.PlayArrow,
-                                contentDescription = null,
-                                tint = Color.Black,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "VidVibe",
-                            fontFamily = FontFamily.Serif,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = VidVibeText,
-                            maxLines = 1,
-                            modifier = Modifier.weight(1f)
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(16.dp)
                         )
                     }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "VidVibe",
+                        fontFamily = FontFamily.Serif,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = VidVibeText,
+                        maxLines = 1
+                    )
                 }
 
-                if (!selectionActive) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(
-                        text = "Trash",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                        color = VidVibeText,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (items.isNotEmpty()) {
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "${items.size} ${if (items.size == 1) "video" else "videos"} · ${formatFileSize(items.sumOf { it.sizeBytes })}",
-                            fontSize = 11.sp,
-                            color = VidVibeTextTertiary,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Trash",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = VidVibeText,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             if (items.isEmpty()) {
@@ -251,7 +279,7 @@ fun TrashScreen(
                         start = 8.dp,
                         end = 8.dp,
                         top = 4.dp,
-                        bottom = if (selectionActive) 104.dp else 160.dp
+                        bottom = 160.dp
                     )
                 ) {
                     items(items, key = { it.id }) { item ->
@@ -260,165 +288,41 @@ fun TrashScreen(
                             selected = item.id in selectedIds,
                             selectionActive = selectionActive,
                             onClick = {
-                                if (selectionActive) toggle(item.id) else {
-                                    selectedIds = setOf(item.id)
-                                }
+                                if (selectionActive) toggle(item.id)
                             },
-                            onLongClick = { toggle(item.id) }
+                            onLongClick = {
+                                if (selectionActive) toggle(item.id) else enterSelection(item.id)
+                            }
                         )
                     }
                 }
             }
         }
 
-        AnimatedVisibility(
-            visible = selectionActive,
-            enter = slideInVertically(
-                initialOffsetY = { it + 40 },
-                animationSpec = spring(dampingRatio = 0.62f, stiffness = 430f)
-            ) + fadeIn(tween(180)),
-            exit = slideOutVertically(
-                targetOffsetY = { it + 40 },
-                animationSpec = tween(220)
-            ) + fadeOut(tween(150)),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 22.dp)
-        ) {
-            Surface(
-                color = Color(0xFF22232F),
-                shape = RoundedCornerShape(32.dp),
-                border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder),
-                shadowElevation = 18.dp
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TrashAction(
-                        icon = Icons.Outlined.Restore,
-                        label = "Restore",
-                        tint = VidVibeGreen,
-                        onClick = {
-                            val ids = selectedIds
-                            onRestore(ids)
-                            clearSelection()
-                            showToast(
-                                if (ids.size == 1) "Video restored"
-                                else "${ids.size} videos restored"
-                            )
-                        }
-                    )
-                    TrashAction(
-                        icon = Icons.Outlined.DeleteForever,
-                        label = "Delete",
-                        tint = VidVibeRed,
-                        onClick = { showDeleteSheet = true }
-                    )
-                }
-            }
-        }
-
-        DeleteSlideSheet(
-            visible = showDeleteSheet,
-            selectedCount = selectedIds.size,
-            onDismiss = { showDeleteSheet = false },
-            onConfirm = {
-                val ids = selectedIds
-                if (ids.isEmpty()) {
-                    false
-                } else {
-                    when (val result = onDeletePermanently(ids)) {
-                        DeleteResult.Deleted -> {
-                            deleteStatusMessage = if (ids.size == 1) {
-                                "Video deleted permanently"
-                            } else {
-                                "${ids.size} videos deleted permanently"
-                            }
-                            true
-                        }
-                        is DeleteResult.NeedsConfirmation -> {
-                            onLaunchDeleteConfirmation(result.intentSender)
-                            showDeleteSheet = false
-                            showToast("Confirm deletion in the system dialog")
-                            false
-                        }
-                        is DeleteResult.Failed -> {
-                            showToast(result.message)
-                            false
-                        }
-                    }
+        VidVibeFloatingMenu(
+            state = menu,
+            onShare = {},
+            onAddTo = {},
+            onDelete = {},
+            onRestore = {
+                pendingAction = TrashAction.Restore
+                menu.openSlide(FloatingMenuColor.Restore, "Slide to Restore")
+            },
+            onDeletePermanently = {
+                pendingAction = TrashAction.Delete
+                menu.openSlide(FloatingMenuColor.Delete, "Slide to Delete")
+            },
+            onCancel = { clearSelection() },
+            onQualityPicked = {},
+            onSlideConfirmed = { menu.beginProgress(auto = true) },
+            onAutoProgressFinished = {
+                when (pendingAction) {
+                    TrashAction.Restore -> finishRestore()
+                    TrashAction.Delete -> finishDelete()
                 }
             },
-            onConfirmed = {
-                showDeleteSheet = false
-                clearSelection()
-                showToast(deleteStatusMessage.ifBlank { "Deleted permanently" })
-            },
-            title = "Delete ${selectedIds.size} permanently?",
-            description = "These files will be removed from this device. This cannot be undone.",
-            slideLabel = "Slide to Delete ${selectedIds.size} ${
-                if (selectedIds.size == 1) "file" else "files"
-            }"
-        )
-    }
-}
-
-@Composable
-private fun RestoreAllButton(onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(VidVibeSurface2)
-            .border(1.dp, VidVibeBorder, RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.Restore,
-            contentDescription = null,
-            tint = VidVibeGreen,
-            modifier = Modifier.size(16.dp)
-        )
-        Spacer(Modifier.width(6.dp))
-        Text(
-            text = "Restore all",
-            style = MaterialTheme.typography.labelMedium,
-            color = VidVibeTextSecondary,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-@Composable
-private fun TrashAction(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    label: String,
-    tint: Color,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(20.dp)
-        )
-        Spacer(Modifier.width(7.dp))
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = VidVibeText,
-            fontWeight = FontWeight.Medium
+            onSuccessFinished = { menu.hide() },
+            modifier = Modifier.fillMaxSize()
         )
     }
 }
@@ -435,12 +339,15 @@ private fun TrashRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .padding(horizontal = 8.dp)
+            .padding(bottom = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
             .background(
-                if (selected) VidVibeSelectionBlue.copy(alpha = 0.12f) else Color.Transparent
+                if (selected) VidVibeSelectionBlue.copy(alpha = 0.15f)
+                else Color(0xFF0A0A0C)
             )
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+            .padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AnimatedVisibility(
@@ -450,14 +357,14 @@ private fun TrashRow(
         ) {
             Box(
                 modifier = Modifier
-                    .padding(end = 10.dp)
+                    .padding(end = 12.dp)
                     .size(22.dp)
                     .clip(CircleShape)
                     .background(
                         if (selected) VidVibeSelectionBlue else Color.Transparent
                     )
                     .border(
-                        width = 1.5.dp,
+                        width = 2.dp,
                         color = if (selected) VidVibeSelectionBlue else VidVibeTextTertiary,
                         shape = CircleShape
                     ),
@@ -467,8 +374,8 @@ private fun TrashRow(
                     Icon(
                         imageVector = Icons.Outlined.Check,
                         contentDescription = null,
-                        tint = Color(0xFF050507),
-                        modifier = Modifier.size(15.dp)
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
@@ -478,8 +385,8 @@ private fun TrashRow(
             modifier = Modifier
                 .width(108.dp)
                 .height(64.dp)
-                .clip(RoundedCornerShape(5.dp))
-                .background(Color(0xFF181920))
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color(0xFF1C1C21))
         ) {
             AsyncImage(
                 model = Uri.parse(item.uri),
@@ -491,31 +398,37 @@ private fun TrashRow(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(4.dp)
-                    .background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(3.dp))
-                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                    .background(
+                        Color.Black.copy(alpha = 0.75f),
+                        RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = formatDuration(item.durationMs),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
                     color = Color.White
                 )
             }
         }
 
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
 
         Column(Modifier.weight(1f)) {
             Text(
                 text = item.displayName,
-                style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
                 color = VidVibeText,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = "${formatVideoDate(item.dateAddedSeconds)} · ${formatFileSize(item.sizeBytes)}",
-                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                fontSize = 11.sp,
                 color = VidVibeTextTertiary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
@@ -569,7 +482,7 @@ private fun EmptyTrash() {
             Row(
                 modifier = Modifier
                     .clip(RoundedCornerShape(16.dp))
-                    .background(VidVibeSurface3)
+                    .background(VidVibeSurface2)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

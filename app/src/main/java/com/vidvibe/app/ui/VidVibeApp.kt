@@ -90,10 +90,9 @@ fun VidVibeApp(viewModel: MainViewModel) {
     }
 
     val appBackground = LocalAppBackground.current
-    val showBottomNav = !selectionActive &&
-        playerVideo == null &&
-        !downloaderFullScreen &&
-        !showTour
+    val navVisible = playerVideo == null && !showTour
+    val navHidden = selectionActive || downloaderFullScreen
+    val navHideFraction = if (selectionActive) 2f else 1.5f
 
     Box(
         modifier = Modifier
@@ -135,6 +134,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
             2 -> TrashScreen(
                 items = trash,
                 onBack = { selectedTab = 0 },
+                onSelectionModeChanged = { selectionActive = it },
                 onRestore = { ids -> viewModel.restoreFromTrash(ids) },
                 onDeletePermanently = { ids -> viewModel.deletePermanently(ids) },
                 onLaunchDeleteConfirmation = { intentSender ->
@@ -164,14 +164,14 @@ fun VidVibeApp(viewModel: MainViewModel) {
             )
         }
 
-        if (showBottomNav) {
-            CustomBottomNav(
-                selectedIndex = selectedTab,
-                onSelect = { selectedTab = it },
-                liquidGlass = settings.liquidGlass,
-                modifier = Modifier.align(Alignment.BottomCenter)
-            )
-        }
+        CustomBottomNav(
+            selectedIndex = selectedTab,
+            onSelect = { selectedTab = it },
+            liquidGlass = settings.liquidGlass,
+            visible = navVisible && !navHidden,
+            hideFraction = navHideFraction,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
 
         VidVibeToastHost(
             message = toast,
@@ -179,7 +179,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = if (showBottomNav) 124.dp else 26.dp)
+                .padding(bottom = if (navVisible && !navHidden) 124.dp else 26.dp)
         )
 
         if (showAbout) {

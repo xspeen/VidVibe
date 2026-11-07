@@ -64,7 +64,6 @@ import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -112,13 +111,15 @@ import coil.compose.AsyncImage
 import com.vidvibe.app.data.Playlist
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.ui.components.ClassicLoader
-import com.vidvibe.app.ui.components.DeleteSlideSheet
+import com.vidvibe.app.ui.components.FloatingMenuColor
+import com.vidvibe.app.ui.components.FloatingMenuContext
+import com.vidvibe.app.ui.components.FloatingMenuState
+import com.vidvibe.app.ui.components.FloatingPanel
 import com.vidvibe.app.ui.components.FluidBackground
 import com.vidvibe.app.ui.components.PlaylistNameDialog
 import com.vidvibe.app.ui.components.PlaylistPickerDialog
 import com.vidvibe.app.ui.components.PullToRefresh
-import com.vidvibe.app.ui.components.RoundIconButton
-import com.vidvibe.app.ui.components.SelectionMenu
+import com.vidvibe.app.ui.components.VidVibeFloatingMenu
 import com.vidvibe.app.ui.theme.VidVibeRed
 import com.vidvibe.app.ui.theme.VidVibeSurface2
 import com.vidvibe.app.ui.theme.VidVibeText
@@ -163,8 +164,7 @@ fun LocalScreen(
 
     var selectionMode by remember { mutableStateOf(false) }
     var selectedIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
-    var showDeleteSheet by remember { mutableStateOf(false) }
-    var deleteStatusMessage by remember { mutableStateOf("") }
+    val menu = remember { FloatingMenuState() }
 
     var folderFilter by remember { mutableStateOf<String?>(null) }
     var playlistFilterId by remember { mutableStateOf<String?>(null) }
@@ -190,13 +190,14 @@ fun LocalScreen(
     fun exitSelection() {
         selectionMode = false
         selectedIds = emptySet()
-        showDeleteSheet = false
+        menu.hide()
         onSelectionModeChanged(false)
     }
 
     fun enterSelection(videoId: Long) {
         selectionMode = true
         selectedIds = selectedIds + videoId
+        menu.openActions(FloatingMenuContext.Local)
         onSelectionModeChanged(true)
         haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
     }
@@ -206,7 +207,21 @@ fun LocalScreen(
         selectedIds = updated
         if (updated.isEmpty()) {
             exitSelection()
+        } else if (menu.panel == FloatingPanel.Hidden) {
+            menu.openActions(FloatingMenuContext.Local)
         }
+    }
+
+    fun deleteSelected() {
+        val items = videos.filter { it.id in selectedIds }
+        if (items.isEmpty()) {
+            exitSelection()
+            return
+        }
+        onMoveToTrash(items)
+        val count = items.size
+        exitSelection()
+        showToast(if (count == 1) "Moved to Trash" else "$count videos moved to Trash")
     }
 
     fun closeSearch() {
@@ -274,8 +289,6 @@ fun LocalScreen(
 
         Column(Modifier.fillMaxSize()) {
             LocalHero(
-                selectionMode = selectionMode,
-                selectedCount = selectedIds.size,
                 searchOpen = searchOpen,
                 searchQuery = searchQuery,
                 onSearchQueryChange = {
@@ -284,17 +297,6 @@ fun LocalScreen(
                 },
                 onOpenSearch = { searchOpen = true },
                 onCloseSearch = { closeSearch() },
-                onExitSelection = { exitSelection() },
-                onSelectAll = {
-                    if (visibleVideos.isEmpty()) return@LocalHero
-                    if (selectedIds.size == visibleVideos.size) {
-                        exitSelection()
-                    } else {
-                        selectionMode = true
-                        selectedIds = visibleVideos.map { it.id }.toSet()
-                        onSelectionModeChanged(true)
-                    }
-                },
                 onShuffle = {
                     if (videos.size > 1) {
                         shuffledIds = videos.map { it.id }.shuffled()
@@ -305,8 +307,7 @@ fun LocalScreen(
 
             LocalTabBar(
                 selectedTab = currentTab,
-                onSelect = { selectTab(it) },
-                dimmed = selectionMode
+                onSelect = { selectTab(it) }
             )
 
             Box(
@@ -401,53 +402,26 @@ fun LocalScreen(
                     }
                 }
 
-                SelectionMenu(
-                    visible = selectionMode && !showDeleteSheet && selectedIds.isNotEmpty(),
+                VidVibeFloatingMenu(
+                    state = menu,
                     onShare = {
                         shareVideos(context, selectedVideos) { showToast(it) }
                     },
                     onAddTo = { showPlaylistPicker = true },
-                    onDelete = { showDeleteSheet = true },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = 22.dp)
-                )
-
-                DeleteSlideSheet(
-                    visible = showDeleteSheet,
-                    selectedCount = selectedIds.size,
-                    onDismiss = { showDeleteSheet = false },
-                    onConfirm = {
-                        val items = videos.filter { it.id in selectedIds }
-                        if (items.isEmpty()) {
-                            false
-                        } else {
-                            onMoveToTrash(items)
-                            deleteStatusMessage = if (items.size == 1) {
-                                "Moved to Trash"
-                            } else {
-                                "${items.size} videos moved to Trash"
-                            }
-                            true
-                        }
-                    },
-                    onConfirmed = {
-                        showDeleteSheet = false
-                        val count = selectedIds.size
-                        exitSelection()
-                        showToast(
-                            deleteStatusMessage.ifBlank {
-                                if (count == 1) "Moved to Trash"
-                                else "$count videos moved to Trash"
-                            }
+                    onDelete = {
+                        menu.openSlide(
+                            color = FloatingMenuColor.Delete,
+                            label = "Slide to Delete"
                         )
                     },
-                    title = "Move ${selectedIds.size} to Trash?",
-                    description = "Files in Trash haven't been permanently deleted from your device.",
-                    slideLabel = "Slide to Delete ${selectedIds.size} ${
-                        if (selectedIds.size == 1) "file" else "files"
-                    }"
+                    onRestore = {},
+                    onDeletePermanently = {},
+                    onCancel = { exitSelection() },
+                    onQualityPicked = {},
+                    onSlideConfirmed = { menu.beginProgress(auto = true) },
+                    onAutoProgressFinished = { deleteSelected() },
+                    onSuccessFinished = { menu.hide() },
+                    modifier = Modifier.fillMaxSize()
                 )
             }
         }
@@ -525,15 +499,11 @@ fun LocalScreen(
 
 @Composable
 private fun LocalHero(
-    selectionMode: Boolean,
-    selectedCount: Int,
     searchOpen: Boolean,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onOpenSearch: () -> Unit,
     onCloseSearch: () -> Unit,
-    onExitSelection: () -> Unit,
-    onSelectAll: () -> Unit,
     onShuffle: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -568,70 +538,45 @@ private fun LocalHero(
             .padding(horizontal = 20.dp, vertical = 24.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (selectionMode) {
-                RoundIconButton(
-                    onClick = onExitSelection,
-                    icon = Icons.Outlined.Close,
-                    contentDescription = "Exit selection",
-                    tint = GlassText
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.PlayArrow,
+                    contentDescription = null,
+                    tint = Color.Black,
+                    modifier = Modifier.size(16.dp)
                 )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "$selectedCount selected",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = GlassText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = "VidVibe",
+                fontFamily = FontFamily.Serif,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                maxLines = 1,
+                modifier = Modifier.weight(1f)
+            )
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .border(1.dp, Color.White.copy(alpha = 0.05f), CircleShape)
+                    .clickable(onClick = onShuffle),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Shuffle,
+                    contentDescription = "Shuffle videos",
+                    tint = GlassText,
+                    modifier = Modifier.size(18.dp)
                 )
-                RoundIconButton(
-                    onClick = onSelectAll,
-                    icon = Icons.Outlined.SelectAll,
-                    contentDescription = "Select all",
-                    tint = GlassText
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.PlayArrow,
-                        contentDescription = null,
-                        tint = Color.Black,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = "VidVibe",
-                    fontFamily = FontFamily.Serif,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    maxLines = 1,
-                    modifier = Modifier.weight(1f)
-                )
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.10f))
-                        .border(1.dp, Color.White.copy(alpha = 0.05f), CircleShape)
-                        .clickable(onClick = onShuffle),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Shuffle,
-                        contentDescription = "Shuffle videos",
-                        tint = GlassText,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
             }
         }
 
@@ -737,15 +682,13 @@ private fun LocalHero(
 @Composable
 private fun LocalTabBar(
     selectedTab: Int,
-    onSelect: (Int) -> Unit,
-    dimmed: Boolean
+    onSelect: (Int) -> Unit
 ) {
     val labels = listOf("Videos", "Folders", "Playlists")
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 12.dp)
-            .alpha(if (dimmed) 0f else 1f)
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -786,7 +729,7 @@ private fun LocalTabBar(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clickable(enabled = !dimmed) { onSelect(index) },
+                            .clickable { onSelect(index) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(

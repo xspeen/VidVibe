@@ -1,5 +1,6 @@
 package com.vidvibe.app.ui.components
 
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -66,11 +67,24 @@ fun CustomBottomNav(
     selectedIndex: Int,
     onSelect: (Int) -> Unit,
     liquidGlass: Boolean,
+    visible: Boolean = true,
+    hideFraction: Float = 2f,
     modifier: Modifier = Modifier
 ) {
+    val density = LocalDensity.current
+    val hiddenOffsetPx = with(density) { 76.dp.toPx() } * hideFraction
+    val translation by animateFloatAsState(
+        targetValue = if (visible) 0f else hiddenOffsetPx,
+        animationSpec = tween(
+            durationMillis = 400,
+            easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+        ),
+        label = "nav-translation"
+    )
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .graphicsLayer { translationY = translation }
             .navigationBarsPadding()
             .padding(horizontal = 16.dp, vertical = 24.dp)
     ) {
@@ -109,6 +123,7 @@ fun CustomBottomNav(
                 NavItem(
                     destination = destination,
                     selected = selectedIndex == index,
+                    enabled = visible,
                     onClick = { onSelect(index) }
                 )
             }
@@ -120,6 +135,7 @@ fun CustomBottomNav(
 private fun NavItem(
     destination: NavDestination,
     selected: Boolean,
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
     val density = LocalDensity.current
@@ -140,6 +156,7 @@ private fun NavItem(
             .width(64.dp)
             .fillMaxHeight()
             .clickable(
+                enabled = enabled,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
                 onClick = onClick
