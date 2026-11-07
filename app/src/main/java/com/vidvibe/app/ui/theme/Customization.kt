@@ -106,7 +106,7 @@ data class CustomizationSelection(
 )
 
 val LocalAppTextColor = staticCompositionLocalOf { TextTone.White.color }
-val LocalAppFontFamily = staticCompositionLocalOf { FontFamily.SansSerif }
+val LocalAppFontFamily = staticCompositionLocalOf<FontFamily> { FontFamily.SansSerif }
 val LocalAnimationDuration = staticCompositionLocalOf { 400 }
 val LocalMenuPalette = staticCompositionLocalOf {
     MenuPalette(MenuGlass.Default.background, MenuGlass.Default.highlight)
