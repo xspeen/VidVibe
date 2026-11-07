@@ -67,6 +67,7 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PlaylistAdd
 import androidx.compose.material.icons.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.Search
@@ -98,6 +99,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -109,6 +111,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -275,6 +278,15 @@ fun LocalScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(background)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color(0x1F4E9BFF),
+                        Color.Transparent,
+                        Color(0x1430D158)
+                    )
+                )
+            )
     ) {
         LocalTopBar(
             selectionMode = selectionMode,
@@ -553,7 +565,6 @@ private fun LocalTopBar(
     onCreatePlaylist: () -> Unit,
     onOpenDrawer: () -> Unit
 ) {
-    val background = LocalAppBackground.current
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
 
@@ -569,86 +580,127 @@ private fun LocalTopBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(background)
             .statusBarsPadding()
+            .padding(horizontal = 14.dp, vertical = 8.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp)
-                .padding(horizontal = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clip(RoundedCornerShape(28.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xE61C1C21), Color(0xF20A0A0C))
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.18f),
+                            Color.White.copy(alpha = 0.03f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(28.dp)
+                )
+                .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
-            if (selectionMode) {
-                RoundIconButton(
-                    onClick = onExitSelection,
-                    icon = Icons.Outlined.Close,
-                    contentDescription = "Exit selection",
-                    tint = VidVibeText
-                )
-                Spacer(Modifier.width(2.dp))
-            } else {
-                Spacer(Modifier.width(12.dp))
-            }
-
-            Text(
-                text = if (selectionMode) "$selectedCount selected" else "Local",
-                style = MaterialTheme.typography.titleLarge,
-                color = VidVibeText,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-
-            if (selectionMode) {
-                RoundIconButton(
-                    onClick = onSelectAll,
-                    icon = Icons.Outlined.SelectAll,
-                    contentDescription = "Select all",
-                    tint = VidVibeText
-                )
-            } else {
-                if (currentTab == 0) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (selectionMode) {
                     RoundIconButton(
-                        onClick = onShuffle,
-                        icon = Icons.Outlined.Shuffle,
-                        contentDescription = "Shuffle videos"
+                        onClick = onExitSelection,
+                        icon = Icons.Outlined.Close,
+                        contentDescription = "Exit selection",
+                        tint = VidVibeText
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "$selectedCount selected",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = VidVibeText,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    RoundIconButton(
+                        onClick = onSelectAll,
+                        icon = Icons.Outlined.SelectAll,
+                        contentDescription = "Select all",
+                        tint = VidVibeText
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(RoundedCornerShape(9.dp))
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.PlayArrow,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "VidVibe",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontFamily = FontFamily.Serif,
+                        fontWeight = FontWeight.SemiBold,
+                        color = VidVibeText,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (currentTab == 0) {
+                        GlassIconButton(
+                            onClick = onShuffle,
+                            icon = Icons.Outlined.Shuffle,
+                            contentDescription = "Shuffle videos"
+                        )
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    GlassIconButton(
+                        onClick = onOpenSearch,
+                        icon = Icons.Outlined.Search,
+                        contentDescription = "Search"
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    GlassIconButton(
+                        onClick = onToggleView,
+                        icon = if (isGridView) Icons.Outlined.ViewList
+                        else Icons.Outlined.GridView,
+                        contentDescription = "Change layout"
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    GlassIconButton(
+                        onClick = onCreatePlaylist,
+                        icon = Icons.Outlined.PlaylistAdd,
+                        contentDescription = "Create playlist"
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    GlassIconButton(
+                        onClick = onOpenDrawer,
+                        icon = Icons.Outlined.MoreVert,
+                        contentDescription = "Open menu"
                     )
                 }
-                RoundIconButton(
-                    onClick = onOpenSearch,
-                    icon = Icons.Outlined.Search,
-                    contentDescription = "Search"
-                )
-                RoundIconButton(
-                    onClick = onToggleView,
-                    icon = if (isGridView) Icons.Outlined.ViewList else Icons.Outlined.GridView,
-                    contentDescription = "Change layout"
-                )
-                RoundIconButton(
-                    onClick = onCreatePlaylist,
-                    icon = Icons.Outlined.PlaylistAdd,
-                    contentDescription = "Create playlist"
-                )
-                RoundIconButton(
-                    onClick = onOpenDrawer,
-                    icon = Icons.Outlined.MoreVert,
-                    contentDescription = "Open menu"
-                )
             }
-        }
 
-        AnimatedVisibility(
-            visible = searchOpen,
-            enter = fadeIn(tween(180)) + slideInHorizontally(tween(220)) { it / 4 },
-            exit = fadeOut(tween(140)) + slideOutHorizontally(tween(180)) { it / 4 },
-            modifier = Modifier.matchParentSize()
-        ) {
+            Spacer(Modifier.height(12.dp))
+
             Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(background)
-                    .padding(start = 16.dp, end = 6.dp),
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(25.dp))
+                    .background(Color.Black.copy(alpha = 0.32f))
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = 0.10f),
+                        RoundedCornerShape(25.dp)
+                    )
+                    .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -658,51 +710,95 @@ private fun LocalTopBar(
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(Modifier.width(10.dp))
-                BasicTextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    modifier = Modifier
-                        .weight(1f)
-                        .focusRequester(focusRequester),
-                    textStyle = TextStyle(
-                        color = VidVibeText,
-                        fontSize = 16.sp,
-                        fontFamily = MaterialTheme.typography.bodyLarge.fontFamily
-                    ),
-                    cursorBrush = SolidColor(VidVibeText),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = { onCloseSearch() }),
-                    decorationBox = { inner ->
-                        Box {
-                            if (searchQuery.isEmpty()) {
-                                Text(
-                                    text = "Search videos...",
-                                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp),
-                                    color = VidVibeTextTertiary
-                                )
+                if (searchOpen) {
+                    BasicTextField(
+                        value = searchQuery,
+                        onValueChange = onSearchQueryChange,
+                        modifier = Modifier
+                            .weight(1f)
+                            .focusRequester(focusRequester),
+                        textStyle = TextStyle(color = VidVibeText, fontSize = 15.sp),
+                        cursorBrush = SolidColor(VidVibeText),
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                        keyboardActions = KeyboardActions(onSearch = { onCloseSearch() }),
+                        decorationBox = { inner ->
+                            Box {
+                                if (searchQuery.isEmpty()) {
+                                    Text(
+                                        text = "Search videos or folders...",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = VidVibeTextTertiary
+                                    )
+                                }
+                                inner()
                             }
-                            inner()
                         }
-                    }
-                )
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(VidVibeSurface3)
-                        .clickable(onClick = onCloseSearch),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = "Close search",
-                        tint = VidVibeTextSecondary,
-                        modifier = Modifier.size(16.dp)
                     )
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.14f))
+                            .clickable(onClick = onCloseSearch),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Close search",
+                            tint = VidVibeText,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Search videos or folders...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = VidVibeTextTertiary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(30.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.10f))
+                            .clickable(onClick = onOpenSearch),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = "Search",
+                            tint = VidVibeTextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun GlassIconButton(
+    onClick: () -> Unit,
+    icon: ImageVector,
+    contentDescription: String
+) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.10f))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = VidVibeText,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 
@@ -713,56 +809,67 @@ private fun LocalTabBar(
     dimmed: Boolean
 ) {
     val labels = listOf("Videos", "Folders", "Playlists")
-    BoxWithConstraints(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .drawBehind {
-                drawLine(
-                    color = VidVibeBorder,
-                    start = Offset(0f, size.height),
-                    end = Offset(size.width, size.height),
-                    strokeWidth = 1.dp.toPx()
-                )
-            }
+            .padding(horizontal = 16.dp, vertical = 10.dp)
             .alpha(if (dimmed) 0f else 1f)
     ) {
-        val tabWidth = maxWidth / labels.size.toFloat()
-        val indicatorOffset by animateDpAsState(
-            targetValue = tabWidth * selectedTab.toFloat(),
-            animationSpec = tween(300),
-            label = "tab-ink"
-        )
-
-        Row(Modifier.fillMaxSize()) {
-            labels.forEachIndexed { index, label ->
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clickable(enabled = !dimmed) { onSelect(index) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
-                        color = if (selectedTab == index) VidVibeText else VidVibeTextTertiary
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xCC1C1C21), Color(0xE60A0A0C))
                     )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(22.dp))
+                .padding(4.dp)
+        ) {
+            val tabWidth = maxWidth / labels.size.toFloat()
+            val indicatorOffset by animateDpAsState(
+                targetValue = tabWidth * selectedTab.toFloat(),
+                animationSpec = tween(300),
+                label = "tab-glass"
+            )
+
+            Box(
+                modifier = Modifier
+                    .offset(x = indicatorOffset)
+                    .width(tabWidth)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color.White.copy(alpha = 0.14f))
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = 0.10f),
+                        RoundedCornerShape(18.dp)
+                    )
+            )
+
+            Row(Modifier.fillMaxSize()) {
+                labels.forEachIndexed { index, label ->
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable(enabled = !dimmed) { onSelect(index) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp),
+                            color = if (selectedTab == index) VidVibeText
+                            else VidVibeTextTertiary,
+                            fontWeight = if (selectedTab == index) FontWeight.SemiBold
+                            else FontWeight.Normal
+                        )
+                    }
                 }
             }
         }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .offset(x = indicatorOffset)
-                .width(tabWidth)
-                .height(2.dp)
-                .background(
-                    VidVibeText,
-                    RoundedCornerShape(topStart = 1.dp, topEnd = 1.dp)
-                )
-        )
     }
 }
 
@@ -1004,8 +1111,13 @@ private fun VideoRow(
             modifier = Modifier
                 .width(108.dp)
                 .height(64.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(10.dp))
                 .background(Color(0xFF181920))
+                .border(
+                    1.dp,
+                    Color.White.copy(alpha = 0.07f),
+                    RoundedCornerShape(10.dp)
+                )
         ) {
             AsyncImage(
                 model = video.uri,
@@ -1028,10 +1140,11 @@ private fun VideoRow(
                 text = video.displayName,
                 style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
                 color = VidVibeText,
+                fontWeight = FontWeight.Medium,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(Modifier.height(3.dp))
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = video.dateLabel,
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),

@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vidvibe.app.data.VideoItem
+import com.vidvibe.app.data.formatFileSize
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
 import com.vidvibe.app.ui.components.AppDrawer
 import com.vidvibe.app.ui.components.CustomBottomNav
@@ -191,6 +192,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
                         settings = settings,
                         videoCount = videos.size,
                         playlistCount = playlists.size,
+                        librarySizeLabel = formatFileSize(videos.sumOf { it.sizeBytes }),
                         onFontSizeChange = viewModel::setFontSize,
                         onLiquidGlassChange = viewModel::setLiquidGlass,
                         onBackgroundChange = viewModel::setBackgroundColor,

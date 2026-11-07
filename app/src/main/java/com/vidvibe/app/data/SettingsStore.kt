@@ -17,7 +17,7 @@ private val Context.vidVibeDataStore: DataStore<Preferences> by preferencesDataS
 
 data class AppSettings(
     val fontSizeSp: Float = 16f,
-    val liquidGlass: Boolean = false,
+    val liquidGlass: Boolean = true,
     val backgroundColor: Int = 0xFF050507.toInt(),
     val wifiOnly: Boolean = false,
     val appLockEnabled: Boolean = false,
@@ -38,7 +38,7 @@ class SettingsStore(private val context: Context) {
     val settings: Flow<AppSettings> = context.vidVibeDataStore.data.map { preferences ->
         AppSettings(
             fontSizeSp = preferences[Keys.fontSize] ?: 16f,
-            liquidGlass = preferences[Keys.liquidGlass] ?: false,
+            liquidGlass = preferences[Keys.liquidGlass] ?: true,
             backgroundColor = preferences[Keys.backgroundColor] ?: 0xFF050507.toInt(),
             wifiOnly = preferences[Keys.wifiOnly] ?: false,
             appLockEnabled = preferences[Keys.appLock] ?: false,

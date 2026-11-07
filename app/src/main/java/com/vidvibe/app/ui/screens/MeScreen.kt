@@ -92,6 +92,7 @@ import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.theme.VidVibeAccentRed
 import com.vidvibe.app.ui.theme.VidVibeBorder
 import com.vidvibe.app.ui.theme.VidVibeRed
+import com.vidvibe.app.ui.theme.VidVibeSelectionBlue
 import com.vidvibe.app.ui.theme.VidVibeSurface2
 import com.vidvibe.app.ui.theme.VidVibeSurface3
 import com.vidvibe.app.ui.theme.VidVibeText
@@ -104,6 +105,7 @@ fun MeScreen(
     settings: AppSettings,
     videoCount: Int,
     playlistCount: Int,
+    librarySizeLabel: String,
     onFontSizeChange: (Float) -> Unit,
     onLiquidGlassChange: (Boolean) -> Unit,
     onBackgroundChange: (Int) -> Unit,
@@ -166,6 +168,7 @@ fun MeScreen(
             settings = settings,
             videoCount = videoCount,
             playlistCount = playlistCount,
+            librarySizeLabel = librarySizeLabel,
             onFontSizeChange = onFontSizeChange,
             onLiquidGlassChange = onLiquidGlassChange,
             onBackgroundChange = onBackgroundChange,
@@ -224,6 +227,7 @@ private fun MeHome(
     settings: AppSettings,
     videoCount: Int,
     playlistCount: Int,
+    librarySizeLabel: String,
     onFontSizeChange: (Float) -> Unit,
     onLiquidGlassChange: (Boolean) -> Unit,
     onBackgroundChange: (Int) -> Unit,
@@ -280,6 +284,57 @@ private fun MeHome(
                     videoCount = videoCount,
                     playlistCount = playlistCount
                 )
+
+                Spacer(Modifier.height(14.dp))
+
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 720.dp),
+                    color = VidVibeSurface2,
+                    shape = RoundedCornerShape(16.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, VidVibeBorder)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(11.dp))
+                                .background(VidVibeSelectionBlue.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.VideoLibrary,
+                                contentDescription = null,
+                                tint = VidVibeSelectionBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(13.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Library storage",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = VidVibeText,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "$videoCount videos · $playlistCount playlists",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = VidVibeTextTertiary
+                            )
+                        }
+                        Text(
+                            text = librarySizeLabel,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = VidVibeSelectionBlue,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
 
                 Spacer(Modifier.height(22.dp))
                 SectionLabel("Appearance")
