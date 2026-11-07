@@ -136,14 +136,14 @@ fun DownloaderScreen(
         when (val state = downloadState) {
             is DownloadState.Running -> {
                 if (menu.panel == FloatingPanel.Progress) {
-                    menu.setProgress(state.progress / 100f)
+                    menu.updateProgress(state.progress / 100f)
                 } else {
                     menu.beginProgress(auto = false, progress = state.progress / 100f)
                 }
             }
 
             is DownloadState.Complete -> {
-                menu.setProgress(1f)
+                menu.updateProgress(1f)
                 delay(450)
                 menu.showSuccess()
             }

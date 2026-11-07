@@ -170,7 +170,7 @@ class FloatingMenuState {
         this.panel = FloatingPanel.Progress
     }
 
-    fun setProgress(value: Float) {
+    fun updateProgress(value: Float) {
         this.progress = value.coerceIn(0f, 1f)
     }
 
