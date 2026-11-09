@@ -283,9 +283,7 @@ fun TrashScreen(
                 }
             }
 
-            if (items.isEmpty()) {
-                EmptyTrash()
-            } else {
+            if (items.isNotEmpty()) {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -452,68 +450,4 @@ private fun TrashRow(
     }
 }
 
-@Composable
-private fun EmptyTrash() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 32.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier.widthIn(max = 360.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(92.dp)
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(VidVibeSurface2)
-                    .border(1.dp, VidVibeBorder, RoundedCornerShape(26.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.DeleteOutline,
-                    contentDescription = null,
-                    tint = VidVibeRedSoft,
-                    modifier = Modifier.size(40.dp)
-                )
-            }
-            Spacer(Modifier.height(22.dp))
-            Text(
-                text = "Trash is empty",
-                style = MaterialTheme.typography.titleMedium,
-                color = VidVibeText,
-                fontWeight = FontWeight.Medium
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Videos you remove from your library appear here. Restore them anytime, or delete them permanently.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = VidVibeTextSecondary,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(20.dp))
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(VidVibeSurface2)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Restore,
-                    contentDescription = null,
-                    tint = VidVibeGreen,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Restored videos return to your library",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = VidVibeTextSecondary
-                )
-            }
-        }
-    }
-}
+
