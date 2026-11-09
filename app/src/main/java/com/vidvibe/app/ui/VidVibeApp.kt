@@ -75,10 +75,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             viewModel.onSystemDeleteConfirmed()
-            showToast("Videos deleted permanently")
         } else {
             viewModel.onSystemDeleteCancelled()
-            showToast("Deletion cancelled")
         }
     }
 

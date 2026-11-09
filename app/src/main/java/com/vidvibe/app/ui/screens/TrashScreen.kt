@@ -158,7 +158,6 @@ fun TrashScreen(
         }
         onRestore(ids)
         clearSelection()
-        showToast(if (ids.size == 1) "Video restored" else "${ids.size} videos restored")
     }
 
     fun finishDelete() {
@@ -171,16 +170,11 @@ fun TrashScreen(
             when (val result = onDeletePermanently(ids)) {
                 DeleteResult.Deleted -> {
                     clearSelection()
-                    showToast(
-                        if (ids.size == 1) "Video deleted permanently"
-                        else "${ids.size} videos deleted permanently"
-                    )
                 }
 
                 is DeleteResult.NeedsConfirmation -> {
                     menu.hide()
                     onLaunchDeleteConfirmation(result.intentSender)
-                    showToast("Confirm deletion in the system dialog")
                 }
 
                 is DeleteResult.Failed -> {

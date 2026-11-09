@@ -232,7 +232,6 @@ fun DownloaderScreen(
             onAutoProgressFinished = {},
             onSuccessFinished = {
                 onResetDownload()
-                showToast("Saved to Movies/VidVibe")
                 menu.hide()
             },
             modifier = Modifier.fillMaxSize()

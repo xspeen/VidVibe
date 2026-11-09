@@ -479,7 +479,6 @@ private fun AppSettingsPage(
                                 appTheme = theme
                             )
                         )
-                        showToast("Customization applied")
                         showSuccess = true
                     }
                 )

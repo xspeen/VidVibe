@@ -220,9 +220,7 @@ fun LocalScreen(
             return
         }
         onMoveToTrash(items)
-        val count = items.size
         exitSelection()
-        showToast(if (count == 1) "Moved to Trash" else "$count videos moved to Trash")
     }
 
     fun closeSearch() {
@@ -301,7 +299,6 @@ fun LocalScreen(
                 onShuffle = {
                     if (videos.size > 1) {
                         shuffledIds = videos.map { it.id }.shuffled()
-                        showToast("Shuffled")
                     }
                 }
             )
@@ -437,14 +434,9 @@ fun LocalScreen(
         onSave = { name ->
             val playlist = onCreatePlaylist(name)
             showCreatePlaylist = false
-            if (playlist == null) {
-                showToast("Enter a playlist name")
-            } else if (addAfterCreate) {
+            if (playlist != null && addAfterCreate) {
                 onAddVideosToPlaylist(playlist.id, selectedIds)
-                showToast("Added to ${playlist.name}")
                 exitSelection()
-            } else {
-                showToast("Playlist created")
             }
             addAfterCreate = false
         }
@@ -457,7 +449,6 @@ fun LocalScreen(
         onSelect = { playlist ->
             onAddVideosToPlaylist(playlist.id, selectedIds)
             showPlaylistPicker = false
-            showToast("Added to ${playlist.name}")
             exitSelection()
         },
         onCreateNew = {
@@ -483,7 +474,6 @@ fun LocalScreen(
                         onDeletePlaylist(playlist.id)
                         if (playlistFilterId == playlist.id) playlistFilterId = null
                         playlistPendingDelete = null
-                        showToast("Playlist deleted")
                     }
                 ) {
                     Text("Delete", color = VidVibeRed)
