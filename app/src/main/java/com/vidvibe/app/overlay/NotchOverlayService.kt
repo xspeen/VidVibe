@@ -37,7 +37,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ChevronDown
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
@@ -79,12 +79,12 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
-import androidx.lifecycle.ViewTreeLifecycleOwner
-import androidx.lifecycle.ViewTreeViewModelStoreOwner
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
 import androidx.savedstate.SavedStateRegistry
 import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
-import androidx.savedstate.ViewTreeSavedStateRegistryOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.vidvibe.app.MainActivity
 import com.vidvibe.app.R
 import com.vidvibe.app.data.AppSettings
@@ -220,9 +220,9 @@ class NotchOverlayService : Service() {
             setViewCompositionStrategy(
                 ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
             )
-            ViewTreeLifecycleOwner.set(this, owner)
-            ViewTreeSavedStateRegistryOwner.set(this, owner)
-            ViewTreeViewModelStoreOwner.set(this, owner)
+            setViewTreeLifecycleOwner(owner)
+            setViewTreeSavedStateRegistryOwner(owner)
+            setViewTreeViewModelStoreOwner(owner)
             setContent {
                 val current by settings.collectAsState()
                 OverlayTheme(current) {
@@ -477,7 +477,7 @@ private fun NotchPill(
         }
         Spacer(Modifier.weight(1f))
         Icon(
-            imageVector = Icons.Outlined.ChevronDown,
+            imageVector = Icons.Outlined.KeyboardArrowDown,
             contentDescription = if (expanded) "Collapse notch" else "Expand notch",
             tint = textColor.copy(alpha = 0.75f),
             modifier = Modifier
