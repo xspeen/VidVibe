@@ -32,9 +32,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.vidvibe.app.download.DownloadNotifications
 import com.vidvibe.app.ui.VidVibeApp
 import com.vidvibe.app.ui.components.PermissionScreen
 import com.vidvibe.app.ui.screens.AppLockScreen
+import com.vidvibe.app.ui.screens.NotificationPermissionScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
 import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
@@ -68,6 +70,11 @@ class MainActivity : FragmentActivity() {
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         )
 
+        DownloadNotifications.ensureChannels(this)
+        if (intent?.getBooleanExtra(DownloadNotifications.EXTRA_OPEN_DOWNLOADS, false) == true) {
+            viewModel.requestTab(1)
+        }
+
         setContent {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val settingsLoaded by viewModel.settingsLoaded.collectAsStateWithLifecycle()
@@ -77,6 +84,7 @@ class MainActivity : FragmentActivity() {
             var permissionRequested by rememberSaveable { mutableStateOf(false) }
             var onboardingComplete by rememberSaveable { mutableStateOf(false) }
             var hasUnlocked by rememberSaveable { mutableStateOf(false) }
+            var notificationPromptHandled by rememberSaveable { mutableStateOf(false) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -87,6 +95,15 @@ class MainActivity : FragmentActivity() {
             val requestPermission = {
                 permissionRequested = true
                 permissionLauncher.launch(requiredMediaPermissions())
+            }
+
+            val notificationLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission()
+            ) { granted ->
+                viewModel.setNotificationsEnabled(granted)
+                if (granted) {
+                    DownloadNotifications.showWelcome(this@MainActivity)
+                }
             }
 
             val lifecycleOwner = LocalLifecycleOwner.current
@@ -113,6 +130,10 @@ class MainActivity : FragmentActivity() {
                 settings.appLockEnabled &&
                 !hasUnlocked
             val appReady = settingsLoaded && !showOnboarding && !lockRequired
+            val needsNotificationPrompt = settingsLoaded &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                !settings.notificationsPrompted &&
+                !notificationPromptHandled
 
             LaunchedEffect(settingsLoaded, settings.appLockEnabled) {
                 if (settingsLoaded && !settings.appLockEnabled) {
@@ -164,10 +185,32 @@ class MainActivity : FragmentActivity() {
                                 startActivity(intent)
                             }
                         )
+                        needsNotificationPrompt -> NotificationPermissionScreen(
+                            onAllow = {
+                                notificationPromptHandled = true
+                                viewModel.setNotificationsPrompted(true)
+                                notificationLauncher.launch(
+                                    Manifest.permission.POST_NOTIFICATIONS
+                                )
+                            },
+                            onSkip = {
+                                notificationPromptHandled = true
+                                viewModel.setNotificationsPrompted(true)
+                                viewModel.setNotificationsEnabled(false)
+                            }
+                        )
                         else -> VidVibeApp(viewModel = viewModel)
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(DownloadNotifications.EXTRA_OPEN_DOWNLOADS, false)) {
+            viewModel.requestTab(1)
         }
     }
 

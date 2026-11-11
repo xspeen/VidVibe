@@ -37,7 +37,12 @@ enum class BackgroundLook(
 ) {
     Midnight("midnight", "Midnight", Color(0xFF0A0A0C)),
     Ocean("ocean", "Ocean", Color(0xFF0A1F3D)),
-    Forest("forest", "Forest", Color(0xFF0A2E1D));
+    Forest("forest", "Forest", Color(0xFF0A2E1D)),
+    Sunset("sunset", "Sunset", Color(0xFF2A1020)),
+    Violet("violet", "Violet", Color(0xFF160A2E)),
+    Slate("slate", "Slate", Color(0xFF14181F)),
+    Crimson("crimson", "Crimson", Color(0xFF240A0D)),
+    Sand("sand", "Sand", Color(0xFF2A2318));
 
     companion object {
         fun from(key: String?): BackgroundLook = entries.firstOrNull { it.key == key } ?: Midnight
@@ -55,7 +60,10 @@ enum class TextTone(
     Pink("pink", "Pink", Color(0xFFFF69B4)),
     Green("green", "Green", Color(0xFF30D158)),
     Orange("orange", "Orange", Color(0xFFFFA500)),
-    Red("red", "Red", Color(0xFFFF453A));
+    Red("red", "Red", Color(0xFFFF453A)),
+    Blue("blue", "Blue", Color(0xFF5AA9FF)),
+    Mint("mint", "Mint", Color(0xFF7CFFCB)),
+    Lavender("lavender", "Lavender", Color(0xFFC9A7FF));
 
     companion object {
         fun from(key: String?): TextTone = entries.firstOrNull { it.key == key } ?: White
@@ -72,7 +80,12 @@ enum class MenuGlass(
     Ocean("ocean", "Ocean", Color(0xB30A2850), Color(0x6610C8FF)),
     Emerald("emerald", "Emerald", Color(0xB30A3C1E), Color(0x6610FF96)),
     Amethyst("amethyst", "Amethyst", Color(0xB3320A46), Color(0x66C864FF)),
-    Ruby("ruby", "Ruby", Color(0xB3460A14), Color(0x66FF6464));
+    Ruby("ruby", "Ruby", Color(0xB3460A14), Color(0x66FF6464)),
+    Sapphire("sapphire", "Sapphire", Color(0xB30A1E46), Color(0x66648CFF)),
+    Gold("gold", "Gold", Color(0xB33A2A08), Color(0x66FFD700)),
+    Frost("frost", "Frost", Color(0xB31A2433), Color(0x66BFE3FF)),
+    Rose("rose", "Rose", Color(0xB3400A24), Color(0x66FF7AB8)),
+    Carbon("carbon", "Carbon", Color(0xB30A0A0A), Color(0x66FFFFFF));
 
     companion object {
         fun from(key: String?): MenuGlass = entries.firstOrNull { it.key == key } ?: Default

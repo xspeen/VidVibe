@@ -11,6 +11,9 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -31,12 +34,15 @@ import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.formatFileSize
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
 import com.vidvibe.app.ui.components.CustomBottomNav
+import com.vidvibe.app.ui.components.CustomSideNav
 import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
 import com.vidvibe.app.ui.components.VidVibeToastHost
 import com.vidvibe.app.ui.screens.DownloaderScreen
 import com.vidvibe.app.ui.screens.LocalScreen
 import com.vidvibe.app.ui.screens.MeScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
+import com.vidvibe.app.ui.screens.SiteLoginScreen
+import com.vidvibe.app.ui.screens.TrimEditorScreen
 import com.vidvibe.app.ui.screens.TrashScreen
 import com.vidvibe.app.ui.screens.VideoPlayerScreen
 import com.vidvibe.app.ui.theme.LocalAppBackground
@@ -54,6 +60,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
     val pendingTab by viewModel.pendingTab.collectAsStateWithLifecycle()
     val pasteToken by viewModel.pasteToken.collectAsStateWithLifecycle()
+    val queue by viewModel.queue.collectAsStateWithLifecycle()
 
     // 0 = Local, 1 = Downloader, 2 = Trash, 3 = Me
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -64,6 +71,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
     var downloaderFullScreen by remember { mutableStateOf(false) }
     var profileSubPage by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showSiteLogin by remember { mutableStateOf(false) }
+    var trimVideo by remember { mutableStateOf<VideoItem?>(null) }
     var toast by remember { mutableStateOf<String?>(null) }
 
     val playerVideo = playerQueue.getOrNull(playerIndex)
@@ -123,87 +132,118 @@ fun VidVibeApp(viewModel: MainViewModel) {
             .fillMaxSize()
             .background(appBackground)
     ) {
-        when (selectedTab) {
-            0 -> LocalScreen(
-                videos = videos,
-                isLoading = isLoading,
-                playlists = playlists,
-                onOpenVideo = { queue, index ->
-                    playerQueue = queue
-                    playerIndex = index
-                },
-                onRefresh = viewModel::refresh,
-                onSelectionModeChanged = { selectionActive = it },
-                onMoveToTrash = { items -> viewModel.moveToTrash(items) },
-                onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
-                onAddVideosToPlaylist = { playlistId, ids ->
-                    viewModel.addVideosToPlaylist(playlistId, ids)
-                },
-                onDeletePlaylist = { playlistId ->
-                    viewModel.deletePlaylist(playlistId)
-                },
-                showToast = { showToast(it) }
-            )
-
-            1 -> DownloaderScreen(
-                downloadState = downloadState,
-                settings = settings,
-                onStartDownload = viewModel::startDownload,
-                onResetDownload = viewModel::resetDownload,
-                onWifiOnlyChange = viewModel::setWifiOnly,
-                onFullScreenChanged = { downloaderFullScreen = it },
-                pasteToken = pasteToken,
-                onPasteConsumed = viewModel::consumePaste,
-                showToast = { showToast(it) }
-            )
-
-            2 -> TrashScreen(
-                items = trash,
-                onBack = { selectedTab = 0 },
-                onSelectionModeChanged = { selectionActive = it },
-                onRestore = { ids -> viewModel.restoreFromTrash(ids) },
-                onDeletePermanently = { ids -> viewModel.deletePermanently(ids) },
-                onLaunchDeleteConfirmation = { intentSender ->
-                    runCatching {
-                        deleteLauncher.launch(
-                            IntentSenderRequest.Builder(intentSender).build()
-                        )
-                    }.onFailure {
-                        showToast("Android could not open the deletion dialog.")
-                    }
-                },
-                showToast = { showToast(it) }
-            )
-
-            else -> MeScreen(
-                settings = settings,
-                librarySizeLabel = formatFileSize(videos.sumOf { it.sizeBytes }),
-                onApplyCustomization = { selection ->
-                    viewModel.setCustomization(
-                        animationStyle = selection.animationStyle.key,
-                        appFont = selection.appFont.key,
-                        backgroundLook = selection.backgroundLook.key,
-                        textColor = selection.textColor.key,
-                        glassColor = selection.glassColor.key,
-                        appTheme = selection.appTheme.key
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val wide = maxWidth >= 600.dp && maxWidth > maxHeight
+            val content: @Composable () -> Unit = {
+                when (selectedTab) {
+                    0 -> LocalScreen(
+                        videos = videos,
+                        isLoading = isLoading,
+                        playlists = playlists,
+                        onOpenVideo = { queue, index ->
+                            playerQueue = queue
+                            playerIndex = index
+                        },
+                        onRefresh = viewModel::refresh,
+                        onSelectionModeChanged = { selectionActive = it },
+                        onMoveToTrash = { items -> viewModel.moveToTrash(items) },
+                        onCreatePlaylist = { name -> viewModel.createPlaylist(name) },
+                        onAddVideosToPlaylist = { playlistId, ids ->
+                            viewModel.addVideosToPlaylist(playlistId, ids)
+                        },
+                        onDeletePlaylist = { playlistId ->
+                            viewModel.deletePlaylist(playlistId)
+                        },
+                        showToast = { showToast(it) }
                     )
-                },
-                onSubPageChanged = { profileSubPage = it },
-                cookiesImported = cookiesImported,
-                onImportCookies = { cookiesLauncher.launch(arrayOf("*/*")) },
-                onClearCookies = viewModel::clearCookies,
-                showToast = { showToast(it) }
-            )
-        }
 
-        CustomBottomNav(
-            selectedIndex = selectedTab,
-            onSelect = { selectedTab = it },
-            liquidGlass = settings.liquidGlass,
-            visible = navVisible && !navHidden,
-            hideFraction = navHideFraction,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+                    1 -> DownloaderScreen(
+                        downloadState = downloadState,
+                        settings = settings,
+                        onStartDownload = viewModel::startDownload,
+                        onResetDownload = viewModel::resetDownload,
+                        onWifiOnlyChange = viewModel::setWifiOnly,
+                        onFullScreenChanged = { downloaderFullScreen = it },
+                        pasteToken = pasteToken,
+                        onPasteConsumed = viewModel::consumePaste,
+                        queue = queue,
+                        onCancelTask = viewModel::cancelQueuedDownload,
+                        onRetryTask = viewModel::retryQueuedDownload,
+                        onRemoveTask = viewModel::removeQueuedDownload,
+                        onClearFinished = viewModel::clearFinishedDownloads,
+                        showToast = { showToast(it) }
+                    )
+
+                    2 -> TrashScreen(
+                        items = trash,
+                        onBack = { selectedTab = 0 },
+                        onSelectionModeChanged = { selectionActive = it },
+                        onRestore = { ids -> viewModel.restoreFromTrash(ids) },
+                        onDeletePermanently = { ids -> viewModel.deletePermanently(ids) },
+                        onLaunchDeleteConfirmation = { intentSender ->
+                            runCatching {
+                                deleteLauncher.launch(
+                                    IntentSenderRequest.Builder(intentSender).build()
+                                )
+                            }.onFailure {
+                                showToast("Android could not open the deletion dialog.")
+                            }
+                        },
+                        showToast = { showToast(it) }
+                    )
+
+                    else -> MeScreen(
+                        settings = settings,
+                        librarySizeLabel = formatFileSize(videos.sumOf { it.sizeBytes }),
+                        onApplyCustomization = { selection ->
+                            viewModel.setCustomization(
+                                animationStyle = selection.animationStyle.key,
+                                appFont = selection.appFont.key,
+                                backgroundLook = selection.backgroundLook.key,
+                                textColor = selection.textColor.key,
+                                glassColor = selection.glassColor.key,
+                                appTheme = selection.appTheme.key
+                            )
+                        },
+                        onSubPageChanged = { profileSubPage = it },
+                        cookiesImported = cookiesImported,
+                        onImportCookies = { cookiesLauncher.launch(arrayOf("*/*")) },
+                        onOpenSiteLogin = { showSiteLogin = true },
+                        onClearCookies = viewModel::clearCookies,
+                        showToast = { showToast(it) }
+                    )
+                }
+
+            }
+
+            if (wide) {
+                Row(Modifier.fillMaxSize()) {
+                    CustomSideNav(
+                        selectedIndex = selectedTab,
+                        onSelect = { selectedTab = it },
+                        liquidGlass = settings.liquidGlass,
+                        visible = navVisible && !navHidden
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    ) {
+                        content()
+                    }
+                }
+            } else {
+                content()
+                CustomBottomNav(
+                    selectedIndex = selectedTab,
+                    onSelect = { selectedTab = it },
+                    liquidGlass = settings.liquidGlass,
+                    visible = navVisible && !navHidden,
+                    hideFraction = navHideFraction,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
+        }
 
         VidVibeToastHost(
             message = toast,
@@ -238,6 +278,18 @@ fun VidVibeApp(viewModel: MainViewModel) {
                 onBack = {
                     playerQueue = emptyList()
                     playerIndex = -1
+                },
+                onTrim = { trimVideo = it }
+            )
+        }
+
+        trimVideo?.let { target ->
+            TrimEditorScreen(
+                video = target,
+                onClose = { trimVideo = null },
+                onSaved = {
+                    viewModel.refresh()
+                    showToast("Clip saved to your gallery.")
                 }
             )
         }
@@ -245,6 +297,17 @@ fun VidVibeApp(viewModel: MainViewModel) {
         if (showTour) {
             OnboardingScreen(
                 onFinish = { showTour = false }
+            )
+        }
+
+        if (showSiteLogin) {
+            SiteLoginScreen(
+                onClose = { showSiteLogin = false },
+                onSaved = { count ->
+                    showSiteLogin = false
+                    viewModel.refreshCookies()
+                    showToast("Signed in. Captured $count cookies on this device.")
+                }
             )
         }
     }

@@ -29,6 +29,11 @@ data class AppSettings(
     val textColor: String = "white",
     val glassColor: String = "default",
     val appTheme: String = "dark",
+    val notificationsPrompted: Boolean = false,
+    val notificationsEnabled: Boolean = true,
+    val backgroundDownloads: Boolean = true,
+    val autoCookies: Boolean = true,
+    val defaultQuality: Int = 720,
 )
 
 class SettingsStore(private val context: Context) {
@@ -46,6 +51,11 @@ class SettingsStore(private val context: Context) {
         val textColor = stringPreferencesKey("text_color")
         val glassColor = stringPreferencesKey("glass_color")
         val appTheme = stringPreferencesKey("app_theme")
+        val notificationsPrompted = booleanPreferencesKey("notifications_prompted")
+        val notificationsEnabled = booleanPreferencesKey("notifications_enabled")
+        val backgroundDownloads = booleanPreferencesKey("background_downloads")
+        val autoCookies = booleanPreferencesKey("auto_cookies")
+        val defaultQuality = intPreferencesKey("default_quality")
     }
 
     val settings: Flow<AppSettings> = context.vidVibeDataStore.data.map { preferences ->
@@ -62,6 +72,11 @@ class SettingsStore(private val context: Context) {
             textColor = preferences[Keys.textColor] ?: "white",
             glassColor = preferences[Keys.glassColor] ?: "default",
             appTheme = preferences[Keys.appTheme] ?: "dark",
+            notificationsPrompted = preferences[Keys.notificationsPrompted] ?: false,
+            notificationsEnabled = preferences[Keys.notificationsEnabled] ?: true,
+            backgroundDownloads = preferences[Keys.backgroundDownloads] ?: true,
+            autoCookies = preferences[Keys.autoCookies] ?: true,
+            defaultQuality = preferences[Keys.defaultQuality] ?: 720,
         )
     }
 
@@ -87,6 +102,26 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setOnboardingSeen(seen: Boolean) {
         context.vidVibeDataStore.edit { it[Keys.onboardingSeen] = seen }
+    }
+
+    suspend fun setNotificationsPrompted(prompted: Boolean) {
+        context.vidVibeDataStore.edit { it[Keys.notificationsPrompted] = prompted }
+    }
+
+    suspend fun setNotificationsEnabled(enabled: Boolean) {
+        context.vidVibeDataStore.edit { it[Keys.notificationsEnabled] = enabled }
+    }
+
+    suspend fun setBackgroundDownloads(enabled: Boolean) {
+        context.vidVibeDataStore.edit { it[Keys.backgroundDownloads] = enabled }
+    }
+
+    suspend fun setAutoCookies(enabled: Boolean) {
+        context.vidVibeDataStore.edit { it[Keys.autoCookies] = enabled }
+    }
+
+    suspend fun setDefaultQuality(height: Int) {
+        context.vidVibeDataStore.edit { it[Keys.defaultQuality] = height.coerceIn(144, 2160) }
     }
 
     suspend fun setCustomization(

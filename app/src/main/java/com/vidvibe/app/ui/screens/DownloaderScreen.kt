@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -32,6 +34,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -65,6 +71,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.vidvibe.app.data.AppSettings
+import com.vidvibe.app.download.DownloadTask
+import com.vidvibe.app.download.QueueStatus
 import com.vidvibe.app.ui.components.FloatingMenuColor
 import com.vidvibe.app.ui.components.FloatingMenuState
 import com.vidvibe.app.ui.components.FloatingPanel
@@ -83,6 +91,11 @@ fun DownloaderScreen(
     onFullScreenChanged: (Boolean) -> Unit = {},
     pasteToken: Int = 0,
     onPasteConsumed: () -> Unit = {},
+    queue: List<DownloadTask> = emptyList(),
+    onCancelTask: (Long) -> Unit = {},
+    onRetryTask: (Long) -> Unit = {},
+    onRemoveTask: (Long) -> Unit = {},
+    onClearFinished: () -> Unit = {},
     showToast: (String) -> Unit
 ) {
     val background = LocalAppBackground.current
@@ -223,6 +236,16 @@ fun DownloaderScreen(
                     onFetch = { beginDownload() },
                     onGo = { beginDownload() }
                 )
+                if (queue.isNotEmpty()) {
+                    Spacer(Modifier.height(26.dp))
+                    DownloadQueuePanel(
+                        queue = queue,
+                        onCancel = onCancelTask,
+                        onRetry = onRetryTask,
+                        onRemove = onRemoveTask,
+                        onClearFinished = onClearFinished
+                    )
+                }
                 Spacer(Modifier.height(120.dp))
             }
         }
@@ -460,6 +483,191 @@ private fun DownloadLinkInput(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Black
+            )
+        }
+    }
+}
+
+
+@Composable
+private fun DownloadQueuePanel(
+    queue: List<DownloadTask>,
+    onCancel: (Long) -> Unit,
+    onRetry: (Long) -> Unit,
+    onRemove: (Long) -> Unit,
+    onClearFinished: () -> Unit
+) {
+    val finished = queue.count {
+        it.state == QueueStatus.Complete ||
+            it.state == QueueStatus.Failed ||
+            it.state == QueueStatus.Cancelled
+    }
+
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "Download queue",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color(0xFFA0A0A8),
+                letterSpacing = 0.2.sp,
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 4.dp)
+            )
+            if (finished > 0) {
+                Text(
+                    text = "Clear finished",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF5AA9FF),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable(onClick = onClearFinished)
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        queue.forEach { task ->
+            QueueCard(
+                task = task,
+                onCancel = { onCancel(task.id) },
+                onRetry = { onRetry(task.id) },
+                onRemove = { onRemove(task.id) }
+            )
+            Spacer(Modifier.height(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun QueueCard(
+    task: DownloadTask,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val accent = when (task.state) {
+        QueueStatus.Running -> Color(0xFF5AA9FF)
+        QueueStatus.Queued -> Color(0xFF9AA0AA)
+        QueueStatus.Complete -> Color(0xFF30D158)
+        QueueStatus.Failed -> Color(0xFFFF5A5F)
+        QueueStatus.Cancelled -> Color(0xFF9AA0AA)
+    }
+    val shape = RoundedCornerShape(16.dp)
+    val running = task.state == QueueStatus.Running || task.state == QueueStatus.Queued
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xCC121218), Color(0xB30A0A0E))
+                )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.09f), shape)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.14f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = when (task.state) {
+                    QueueStatus.Complete -> Icons.Outlined.Check
+                    QueueStatus.Failed -> Icons.Outlined.Close
+                    QueueStatus.Cancelled -> Icons.Outlined.Close
+                    else -> Icons.Outlined.Download
+                },
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = task.title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = when (task.state) {
+                    QueueStatus.Queued -> "Waiting in queue"
+                    QueueStatus.Complete -> task.fileName ?: "Saved to your gallery"
+                    QueueStatus.Failed -> task.error ?: "Download failed"
+                    QueueStatus.Cancelled -> "Cancelled"
+                    QueueStatus.Running -> "${task.status}  ${task.progress}%"
+                },
+                fontSize = 10.5.sp,
+                color = if (task.state == QueueStatus.Failed) {
+                    Color(0xFFFF8A8E)
+                } else {
+                    Color(0xFF9AA0AA)
+                },
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (running) {
+                Spacer(Modifier.height(7.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.10f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(
+                                (task.progress.coerceIn(0, 100) / 100f)
+                            )
+                            .fillMaxHeight()
+                            .background(accent, RoundedCornerShape(2.dp))
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.width(10.dp))
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.07f))
+                .clickable {
+                    when (task.state) {
+                        QueueStatus.Queued, QueueStatus.Running -> onCancel()
+                        QueueStatus.Failed, QueueStatus.Cancelled -> onRetry()
+                        QueueStatus.Complete -> onRemove()
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (running) {
+                    Icons.Outlined.Close
+                } else if (task.state == QueueStatus.Complete) {
+                    Icons.Outlined.Check
+                } else {
+                    Icons.Outlined.Refresh
+                },
+                contentDescription = when {
+                    running -> "Cancel download"
+                    task.state == QueueStatus.Complete -> "Remove from list"
+                    else -> "Retry download"
+                },
+                tint = Color.White.copy(alpha = 0.72f),
+                modifier = Modifier.size(16.dp)
             )
         }
     }

@@ -258,6 +258,18 @@ SINGLE_STREAM_HOSTS = (
     "eporner",
     "beeg",
     "youporn",
+    "hqporner",
+    "txxx",
+    "porntrex",
+    "motherless",
+    "fapello",
+    "thothub",
+    "erome",
+    "missav",
+    "supjav",
+    "njav",
+    "javhd",
+    "hanime",
 )
 
 
@@ -275,13 +287,14 @@ def _friendly_error(url, error):
     if "instagram" in host:
         if needs_login:
             return (
-                "Instagram needs a signed-in session for this post. Export cookies.txt "
-                "from a browser where you are logged in, import it in Profile > App "
-                "Settings, then try again."
+                "Instagram needs a signed-in session for this post. Open Profile > "
+                "App Settings > Sign in to sites, sign in once, then try again. "
+                "VidVibe captures the cookies automatically."
             )
         return (
             "Instagram did not return this video. Public reels and posts download "
-            "directly; private accounts need cookies.txt in Profile > App Settings."
+            "directly; private accounts need a one-time sign-in from Profile > "
+            "App Settings > Sign in to sites."
         )
     if "youtube.com" in host or "youtu.be" in host:
         return (
@@ -296,12 +309,14 @@ def _friendly_error(url, error):
     if "facebook" in host or "fb.watch" in host:
         return (
             "Facebook did not return this video. Public posts work best; private or "
-            "group posts need cookies.txt in Profile > App Settings."
+            "group posts need a one-time sign-in from Profile > App Settings > "
+            "Sign in to sites."
         )
     if needs_login:
         return (
-            "This site asked for a signed-in session. Export a cookies.txt from a "
-            "logged-in browser, import it in Profile > App Settings, then try again."
+            "This site asked for a signed-in or age-verified session. Open Profile > "
+            "App Settings > Sign in to sites, sign in once, then try again. VidVibe "
+            "captures and retries the cookies automatically."
         )
     if first_line:
         return "This link could not be downloaded. %s" % first_line[:220]

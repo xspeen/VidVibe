@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -140,6 +142,7 @@ fun MeScreen(
     onSubPageChanged: (Boolean) -> Unit,
     cookiesImported: Boolean = false,
     onImportCookies: (() -> Unit)? = null,
+    onOpenSiteLogin: (() -> Unit)? = null,
     onClearCookies: () -> Unit = {},
     showToast: (String) -> Unit
 ) {
@@ -189,6 +192,7 @@ fun MeScreen(
                 onApplyCustomization = onApplyCustomization,
                 cookiesImported = cookiesImported,
                 onImportCookies = onImportCookies,
+                onOpenSiteLogin = onOpenSiteLogin,
                 onClearCookies = onClearCookies,
                 showToast = showToast
             )
@@ -319,6 +323,7 @@ private fun DownloadHistoryPage(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AppSettingsPage(
     settings: AppSettings,
@@ -326,6 +331,7 @@ private fun AppSettingsPage(
     onApplyCustomization: (CustomizationSelection) -> Unit,
     cookiesImported: Boolean,
     onImportCookies: (() -> Unit)?,
+    onOpenSiteLogin: (() -> Unit)?,
     onClearCookies: () -> Unit,
     showToast: (String) -> Unit
 ) {
@@ -374,6 +380,7 @@ private fun AppSettingsPage(
                 SiteLoginGroup(
                     cookiesImported = cookiesImported,
                     onImportCookies = onImportCookies,
+                    onOpenSiteLogin = onOpenSiteLogin,
                     onClearCookies = onClearCookies
                 )
 
@@ -420,16 +427,17 @@ private fun AppSettingsPage(
                     icon = Icons.Outlined.Palette,
                     title = "Background Look"
                 ) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         BackgroundLook.entries.forEach { option ->
                             OptionButton(
                                 label = option.label,
                                 selected = backgroundLook == option,
                                 onClick = { backgroundLook = option },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.width(96.dp)
                             )
                         }
                     }
@@ -439,9 +447,10 @@ private fun AppSettingsPage(
                     icon = Icons.Outlined.Palette,
                     title = "Text Color"
                 ) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         TextTone.entries.forEach { option ->
                             TextColorDot(
@@ -457,9 +466,10 @@ private fun AppSettingsPage(
                     icon = Icons.Outlined.Settings,
                     title = "Floating Menu Colors"
                 ) {
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         MenuGlass.entries.forEach { option ->
                             GlassColorDot(
@@ -755,6 +765,7 @@ private fun GlassColorDot(
 private fun SiteLoginGroup(
     cookiesImported: Boolean,
     onImportCookies: (() -> Unit)?,
+    onOpenSiteLogin: (() -> Unit)?,
     onClearCookies: () -> Unit
 ) {
     val currentText = LocalAppTextColor.current
@@ -769,7 +780,7 @@ private fun SiteLoginGroup(
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "cookies.txt",
+                    text = "Automatic cookies",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = currentText
@@ -777,9 +788,9 @@ private fun SiteLoginGroup(
                 Spacer(Modifier.height(3.dp))
                 Text(
                     text = if (cookiesImported) {
-                        "Imported. Private and login-only videos can be fetched."
+                        "Session saved. Private, age-gated and login-only videos can be fetched."
                     } else {
-                        "Not imported. Private or login-only posts need it."
+                        "Sign in once inside VidVibe. No file export needed."
                     },
                     fontSize = 11.sp,
                     color = if (cookiesImported) ProfileGreen.copy(alpha = 0.90f) else ProfileText2,
@@ -800,6 +811,27 @@ private fun SiteLoginGroup(
 
         Spacer(Modifier.height(12.dp))
 
+        if (onOpenSiteLogin != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(42.dp)
+                    .clip(RoundedCornerShape(21.dp))
+                    .background(ProfileBlue.copy(alpha = 0.24f))
+                    .border(1.dp, ProfileBlue.copy(alpha = 0.50f), RoundedCornerShape(21.dp))
+                    .clickable(onClick = onOpenSiteLogin),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Sign in to sites",
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = currentText
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -809,14 +841,10 @@ private fun SiteLoginGroup(
                     .weight(1f)
                     .height(38.dp)
                     .clip(RoundedCornerShape(19.dp))
-                    .background(
-                        if (onImportCookies != null) ProfileBlue.copy(alpha = 0.22f)
-                        else Color.White.copy(alpha = 0.05f)
-                    )
+                    .background(Color.White.copy(alpha = 0.05f))
                     .border(
                         1.dp,
-                        if (onImportCookies != null) ProfileBlue.copy(alpha = 0.45f)
-                        else Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.08f),
                         RoundedCornerShape(19.dp)
                     )
                     .then(
@@ -861,7 +889,8 @@ private fun SiteLoginGroup(
         Spacer(Modifier.height(8.dp))
 
         Text(
-            text = "Export a Netscape-format cookies.txt from a browser where you are signed in. It stays on this device.",
+            text = "VidVibe captures the session inside the app and keeps it on this device. " +
+                "A cookies.txt dropped in Downloads is detected automatically.",
             fontSize = 10.sp,
             color = ProfileText2,
             lineHeight = 14.sp

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -393,6 +394,209 @@ private fun NavGlyph(
                 }
                 drawPath(body, color = color)
             }
+        }
+    }
+}
+
+/**
+ * Landscape / wide-screen navigation rail. It mirrors the bottom bar exactly
+ * (same glyphs, glass body and selection language) but stands vertically on
+ * the leading edge so the content never has to scroll just to reach a tab.
+ * Width animates to zero when a full-screen overlay takes over, which lets the
+ * content reclaim the whole display without a layout jump.
+ */
+@Composable
+fun CustomSideNav(
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    liquidGlass: Boolean,
+    visible: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    val textColor = LocalAppTextColor.current
+    val railWidth by animateDpAsState(
+        targetValue = if (visible) 92.dp else 0.dp,
+        animationSpec = tween(
+            durationMillis = 320,
+            easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+        ),
+        label = "side-nav-width"
+    )
+
+    Box(
+        modifier = modifier
+            .width(railWidth)
+            .fillMaxHeight()
+            .clip(RoundedCornerShape(topEnd = 22.dp, bottomEnd = 22.dp))
+            .background(
+                Brush.verticalGradient(
+                    if (liquidGlass) {
+                        listOf(Color(0xF2141418), Color(0xF2070709))
+                    } else {
+                        listOf(Color(0xFF101014), Color(0xFF050506))
+                    }
+                )
+            )
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = if (liquidGlass) 0.20f else 0.08f),
+                shape = RoundedCornerShape(topEnd = 22.dp, bottomEnd = 22.dp)
+            )
+    ) {
+        // Fixed-width content keeps the rail from reflowing while it collapses.
+        Column(
+            modifier = Modifier
+                .width(92.dp)
+                .fillMaxHeight()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            SideBrandMark()
+            Spacer(Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .width(40.dp)
+                    .height(1.dp)
+                    .background(Color.White.copy(alpha = 0.12f))
+            )
+            Spacer(Modifier.weight(1f))
+            destinations.forEachIndexed { index, destination ->
+                SideNavItem(
+                    destination = destination,
+                    selected = selectedIndex == index,
+                    textColor = textColor,
+                    onClick = { onSelect(index) }
+                )
+                Spacer(Modifier.height(6.dp))
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = "VIBE",
+                fontSize = 7.5.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.6.sp,
+                color = textColor.copy(alpha = 0.24f)
+            )
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun SideBrandMark() {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.size(16.dp)) {
+            val triangle = Path().apply {
+                moveTo(size.width * 0.24f, size.height * 0.14f)
+                lineTo(size.width * 0.86f, size.height * 0.5f)
+                lineTo(size.width * 0.24f, size.height * 0.86f)
+                close()
+            }
+            drawPath(triangle, color = Color.Black)
+        }
+    }
+}
+
+@Composable
+private fun SideNavItem(
+    destination: NavDestination,
+    selected: Boolean,
+    textColor: Color,
+    onClick: () -> Unit
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.96f,
+        animationSpec = tween(280, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
+        label = "side-nav-scale"
+    )
+    val contentAlpha by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.58f,
+        animationSpec = tween(280),
+        label = "side-nav-alpha"
+    )
+    val shape = RoundedCornerShape(14.dp)
+
+    Box(
+        modifier = Modifier
+            .width(72.dp)
+            .height(58.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                alpha = contentAlpha
+            }
+            .clip(shape)
+            .background(
+                if (selected) Color.White.copy(alpha = 0.13f) else Color.Transparent
+            )
+            .then(
+                if (selected) {
+                    Modifier.border(
+                        width = 1.dp,
+                        color = Color.White.copy(alpha = 0.34f),
+                        shape = shape
+                    )
+                } else {
+                    Modifier
+                }
+            )
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier.size(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                NavGlyph(
+                    glyph = destination.glyph,
+                    color = textColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                if (destination.glyph == NavGlyph.Profile) {
+                    Crown(
+                        selected = selected,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .offset(y = (-8).dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(5.dp))
+            Text(
+                text = destination.label,
+                fontSize = 8.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.2.sp,
+                color = textColor
+            )
+        }
+
+        if (selected) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 4.dp)
+                    .width(2.5.dp)
+                    .height(24.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Gold)
+            )
         }
     }
 }

@@ -17,6 +17,10 @@ import com.vidvibe.app.data.TrashStore
 import com.vidvibe.app.data.TrashedVideo
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.VideoRepository
+import com.vidvibe.app.download.CookieStore
+import com.vidvibe.app.download.DownloadQueue
+import com.vidvibe.app.download.DownloadTask
+import com.vidvibe.app.download.QueueStatus
 import com.vidvibe.app.download.YtDlpManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -24,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -71,6 +76,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
 
+    /** Live background queue; the downloader screen renders this list. */
+    val queue: StateFlow<List<DownloadTask>> = DownloadQueue.tasks
+
     private val _pendingTab = MutableStateFlow<Int?>(null)
     val pendingTab: StateFlow<Int?> = _pendingTab.asStateFlow()
 
@@ -86,11 +94,57 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var pasteCounter = 0
 
     private var refreshJob: Job? = null
-    private var downloadJob: Job? = null
+    private var activeDownloadId: Long? = null
     private var pendingPermanentDeleteIds: Set<Long> = emptySet()
 
     init {
         refresh()
+        viewModelScope.launch {
+            if (settings.value.autoCookies) {
+                val imported = withContext(Dispatchers.IO) {
+                    CookieStore.autoImport(getApplication())
+                }
+                if (imported) _cookiesImported.value = true
+            }
+        }
+        viewModelScope.launch {
+            DownloadQueue.tasks.collect { tasks ->
+                val id = activeDownloadId ?: return@collect
+                val task = tasks.firstOrNull { it.id == id }
+                if (task == null) {
+                    activeDownloadId = null
+                    return@collect
+                }
+                when (task.state) {
+                    QueueStatus.Queued -> _downloadState.value =
+                        DownloadState.Running(task.progress, "Queued")
+
+                    QueueStatus.Running -> _downloadState.value =
+                        DownloadState.Running(task.progress, task.status)
+
+                    QueueStatus.Complete -> {
+                        activeDownloadId = null
+                        _downloadState.value = DownloadState.Complete(
+                            Uri.EMPTY,
+                            task.fileName ?: task.title
+                        )
+                        loadVideosNow()
+                    }
+
+                    QueueStatus.Failed -> {
+                        activeDownloadId = null
+                        _downloadState.value = DownloadState.Error(
+                            task.error ?: "The download could not be completed."
+                        )
+                    }
+
+                    QueueStatus.Cancelled -> {
+                        activeDownloadId = null
+                        _downloadState.value = DownloadState.Idle
+                    }
+                }
+            }
+        }
     }
 
     fun refresh() {
@@ -190,11 +244,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearCookies() {
         viewModelScope.launch {
-            withContext(Dispatchers.IO) {
-                runCatching { YtDlpManager.cookiesFile(getApplication()).delete() }
-            }
+            withContext(Dispatchers.IO) { CookieStore.clear(getApplication()) }
             _cookiesImported.value = false
         }
+    }
+
+    fun refreshCookies() {
+        _cookiesImported.value = YtDlpManager.hasCookies(getApplication())
     }
 
     fun consumeCookieError() {
@@ -210,8 +266,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.getOrDefault(false)
 
     fun startDownload(url: String, qualityHeight: Int) {
-        if (downloadJob?.isActive == true) return
-
         val cleanUrl = url.trim()
         val parsed = runCatching { Uri.parse(cleanUrl) }.getOrNull()
         if (
@@ -232,37 +286,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        downloadJob = viewModelScope.launch {
-            _downloadState.value = DownloadState.Running(0, "Preparing download...")
-            try {
-                val file = ytDlpManager.downloadVideo(
-                    url = cleanUrl,
-                    qualityHeight = qualityHeight
-                ) { percent, status ->
-                    _downloadState.value = DownloadState.Running(percent, status)
-                }
+        val id = DownloadQueue.enqueue(getApplication(), cleanUrl, qualityHeight)
+        activeDownloadId = id
+        _downloadState.value = DownloadState.Running(0, "Queued")
+    }
 
-                val galleryName = if (file.name.startsWith("VidVibe_")) {
-                    file.name
-                } else {
-                    "VidVibe_${file.name}"
-                }
-                val mimeType = repository.mimeTypeFor(galleryName)
-                val galleryUri = withContext(Dispatchers.IO) {
-                    repository.saveToGallery(file, galleryName, mimeType)
-                }
+    fun cancelQueuedDownload(id: Long) {
+        DownloadQueue.cancel(getApplication(), id)
+    }
 
-                runCatching { file.delete() }
-                _downloadState.value = DownloadState.Complete(galleryUri, galleryName)
-                loadVideosNow()
-            } catch (error: Throwable) {
-                val message = error.message
-                    ?.substringBefore('\n')
-                    ?.takeIf { it.isNotBlank() }
-                    ?: "The download could not be completed."
-                _downloadState.value = DownloadState.Error(message)
-            }
-        }
+    fun retryQueuedDownload(id: Long) {
+        DownloadQueue.retry(getApplication(), id)
+    }
+
+    fun removeQueuedDownload(id: Long) {
+        DownloadQueue.remove(id)
+    }
+
+    fun clearFinishedDownloads() {
+        DownloadQueue.clearFinished()
     }
 
     fun resetDownload() {
@@ -299,6 +341,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setOnboardingSeen(seen: Boolean) {
         viewModelScope.launch { settingsStore.setOnboardingSeen(seen) }
+    }
+
+    fun setNotificationsPrompted(prompted: Boolean) {
+        viewModelScope.launch { settingsStore.setNotificationsPrompted(prompted) }
+    }
+
+    fun setNotificationsEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setNotificationsEnabled(enabled) }
+    }
+
+    fun setBackgroundDownloads(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setBackgroundDownloads(enabled) }
+    }
+
+    fun setAutoCookies(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setAutoCookies(enabled) }
+    }
+
+    fun setDefaultQuality(height: Int) {
+        viewModelScope.launch { settingsStore.setDefaultQuality(height) }
     }
 
     fun requestTab(index: Int) {

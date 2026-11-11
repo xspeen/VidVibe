@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.IntentSender
+import android.graphics.Bitmap
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
@@ -14,6 +15,7 @@ import android.webkit.MimeTypeMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 
 sealed interface DeleteResult {
@@ -228,6 +230,84 @@ class VideoRepository(private val context: Context) {
         )
         return uri
     }
+
+    /**
+     * Saves a captured frame as a PNG in Pictures/VidVibe and returns its URI.
+     */
+    suspend fun saveImageToGallery(bitmap: Bitmap, displayName: String): Uri =
+        withContext(Dispatchers.IO) {
+            val mimeType = "image/png"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val collection = MediaStore.Images.Media.getContentUri(
+                    MediaStore.VOLUME_EXTERNAL_PRIMARY
+                )
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+                    put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+                    put(
+                        MediaStore.Images.Media.RELATIVE_PATH,
+                        "${Environment.DIRECTORY_PICTURES}/VidVibe"
+                    )
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+                val uri = resolver.insert(collection, values)
+                    ?: throw IOException("Android could not create the image entry.")
+                try {
+                    resolver.openOutputStream(uri)?.use { output ->
+                        if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                            throw IOException("The frame could not be encoded.")
+                        }
+                    } ?: throw IOException("Android could not open the image destination.")
+                    resolver.update(
+                        uri,
+                        ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) },
+                        null,
+                        null
+                    )
+                    uri
+                } catch (error: Throwable) {
+                    runCatching { resolver.delete(uri, null, null) }
+                    throw error
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                val directory = File(
+                    Environment.getExternalStoragePublicDirectory(
+                        Environment.DIRECTORY_PICTURES
+                    ),
+                    "VidVibe"
+                )
+                if (!directory.exists() && !directory.mkdirs()) {
+                    throw IOException("Could not create the VidVibe pictures folder.")
+                }
+                val target = File(directory, displayName)
+                FileOutputStream(target).use { output ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        throw IOException("The frame could not be encoded.")
+                    }
+                }
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, displayName)
+                    put(MediaStore.Images.Media.MIME_TYPE, mimeType)
+                    put(MediaStore.Images.Media.DATA, target.absolutePath)
+                    put(
+                        MediaStore.Images.Media.DATE_ADDED,
+                        System.currentTimeMillis() / 1000L
+                    )
+                }
+                val uri = resolver.insert(
+                    MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                    values
+                ) ?: throw IOException("Android could not create the image entry.")
+                MediaScannerConnection.scanFile(
+                    context,
+                    arrayOf(target.absolutePath),
+                    arrayOf(mimeType),
+                    null
+                )
+                uri
+            }
+        }
 
     fun mimeTypeFor(fileName: String): String {
         val extension = fileName.substringAfterLast('.', "").lowercase()
