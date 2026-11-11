@@ -1306,7 +1306,11 @@ private fun shareVideos(
     }
     intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     try {
-        context.startActivity(Intent.createChooser(intent, "Share videos"))
+        context.startActivity(
+            Intent.createChooser(intent, "Share videos")
+                // The floating window shares from a service context.
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     } catch (_: ActivityNotFoundException) {
         onError("No app can share this video.")
     }

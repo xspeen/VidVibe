@@ -22,8 +22,8 @@ android {
         applicationId = "com.vidvibe.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 17
-        versionName = "2.1.7"
+        versionCode = 18
+        versionName = "2.2.0"
 
         vectorDrawables {
             useSupportLibrary = true

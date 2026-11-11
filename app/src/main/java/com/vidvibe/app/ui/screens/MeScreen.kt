@@ -135,9 +135,9 @@ private enum class ProfilePage {
 fun MeScreen(
     settings: AppSettings,
     librarySizeLabel: String,
-    notchEnabled: Boolean,
+    floatingWindowEnabled: Boolean,
     overlayPermissionGranted: Boolean,
-    onNotchEnabledChange: (Boolean) -> Unit,
+    onFloatingWindowEnabledChange: (Boolean) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onApplyCustomization: (CustomizationSelection) -> Unit,
     onSubPageChanged: (Boolean) -> Unit,
@@ -185,9 +185,9 @@ fun MeScreen(
 
             ProfilePage.Settings -> AppSettingsPage(
                 settings = settings,
-                notchEnabled = notchEnabled,
+                floatingWindowEnabled = floatingWindowEnabled,
                 overlayPermissionGranted = overlayPermissionGranted,
-                onNotchEnabledChange = onNotchEnabledChange,
+                onFloatingWindowEnabledChange = onFloatingWindowEnabledChange,
                 onRequestOverlayPermission = onRequestOverlayPermission,
                 onBack = { page = ProfilePage.Home },
                 onApplyCustomization = onApplyCustomization,
@@ -323,9 +323,9 @@ private fun DownloadHistoryPage(
 @Composable
 private fun AppSettingsPage(
     settings: AppSettings,
-    notchEnabled: Boolean,
+    floatingWindowEnabled: Boolean,
     overlayPermissionGranted: Boolean,
-    onNotchEnabledChange: (Boolean) -> Unit,
+    onFloatingWindowEnabledChange: (Boolean) -> Unit,
     onRequestOverlayPermission: () -> Unit,
     onBack: () -> Unit,
     onApplyCustomization: (CustomizationSelection) -> Unit,
@@ -373,10 +373,10 @@ private fun AppSettingsPage(
                     .navigationBarsPadding()
                     .padding(bottom = 100.dp)
             ) {
-                FloatingNotchGroup(
-                    enabled = notchEnabled,
+                FloatingWindowGroup(
+                    enabled = floatingWindowEnabled,
                     overlayPermissionGranted = overlayPermissionGranted,
-                    onEnabledChange = onNotchEnabledChange,
+                    onEnabledChange = onFloatingWindowEnabledChange,
                     onRequestPermission = onRequestOverlayPermission,
                     glass = glass,
                     textColor = textTone.color,
@@ -758,7 +758,7 @@ private fun GlassColorDot(
 }
 
 @Composable
-private fun FloatingNotchGroup(
+private fun FloatingWindowGroup(
     enabled: Boolean,
     overlayPermissionGranted: Boolean,
     onEnabledChange: (Boolean) -> Unit,
@@ -771,7 +771,7 @@ private fun FloatingNotchGroup(
 
     CustomGroup(
         icon = Icons.Outlined.Smartphone,
-        title = "Floating Notch"
+        title = "Floating Window"
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -779,14 +779,14 @@ private fun FloatingNotchGroup(
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "Download from the notch",
+                    text = "Run VidVibe over other apps",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = currentText
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    text = "A glass notch that hugs your camera cutout. Paste a link, watch the green bar fill, and it closes itself.",
+                    text = "A liquid-glass card with the whole app inside: move it, resize it, and use every tab while another app stays open.",
                     fontSize = 11.sp,
                     color = ProfileText2,
                     lineHeight = 15.sp
@@ -808,7 +808,7 @@ private fun FloatingNotchGroup(
 
         Spacer(Modifier.height(14.dp))
 
-        NotchMiniPreview(
+        FloatingWindowPreview(
             glass = glass,
             textColor = textColor,
             fontFamily = fontFamily,
@@ -836,7 +836,7 @@ private fun FloatingNotchGroup(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Allow display over other apps to show the notch.",
+                        text = "Allow display over other apps to show the floating window.",
                         fontSize = 11.sp,
                         color = Color(0xFFFFD08A),
                         modifier = Modifier.weight(1f)
@@ -853,7 +853,7 @@ private fun FloatingNotchGroup(
             enabled -> {
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    text = "Active. Tap the notch to open the panel.",
+                    text = "Active. Drag the glass card anywhere; tap it to collapse into a bubble.",
                     fontSize = 11.sp,
                     color = ProfileGreen.copy(alpha = 0.90f)
                 )
@@ -863,24 +863,19 @@ private fun FloatingNotchGroup(
 }
 
 @Composable
-private fun NotchMiniPreview(
+private fun FloatingWindowPreview(
     glass: MenuGlass,
     textColor: Color,
     fontFamily: FontFamily,
     enabled: Boolean
 ) {
     val previewAlpha = if (enabled) 1f else 0.55f
-    val pillShape = RoundedCornerShape(
-        topStart = 9.dp,
-        topEnd = 9.dp,
-        bottomStart = 14.dp,
-        bottomEnd = 14.dp
-    )
+    val cardShape = RoundedCornerShape(16.dp)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(150.dp)
+            .height(170.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
                 Brush.verticalGradient(
@@ -891,89 +886,105 @@ private fun NotchMiniPreview(
             .alpha(previewAlpha)
             .padding(10.dp)
     ) {
+        // A pretend app sits behind the window, so the preview reads as an
+        // overlay instead of a screen of its own.
         Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            repeat(3) { index ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(if (index == 1) 0.62f else 0.82f)
+                        .height(7.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.05f))
+                )
+            }
+        }
+
+        // The floating card.
+        Column(
+            modifier = Modifier
+                .padding(start = 26.dp, top = 14.dp, end = 4.dp, bottom = 8.dp)
+                .fillMaxSize()
+                .clip(cardShape)
+                .background(glass.background.copy(alpha = 0.96f))
+                .border(
+                    1.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.30f),
+                            Color.White.copy(alpha = 0.05f)
+                        )
+                    ),
+                    cardShape
+                )
         ) {
             Row(
                 modifier = Modifier
-                    .width(112.dp)
-                    .height(24.dp)
-                    .clip(pillShape)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(Color(0xF20A0A0C), glass.background.copy(alpha = 0.96f))
-                        )
-                    )
-                    .border(1.dp, Color.White.copy(alpha = 0.12f), pillShape)
-                    .padding(horizontal = 12.dp),
+                    .fillMaxWidth()
+                    .height(22.dp)
+                    .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
-                        .size(4.dp)
-                        .clip(CircleShape)
+                        .size(10.dp)
+                        .clip(RoundedCornerShape(3.dp))
                         .background(ProfileGreen)
                 )
-                Spacer(Modifier.width(5.dp))
+                Spacer(Modifier.width(4.dp))
                 Text(
-                    text = "Download",
-                    fontSize = 7.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    text = "VidVibe",
+                    fontSize = 6.sp,
+                    fontWeight = FontWeight.Bold,
                     fontFamily = fontFamily,
                     color = textColor
                 )
                 Spacer(Modifier.weight(1f))
-                Icon(
-                    imageVector = Icons.Outlined.ChevronRight,
-                    contentDescription = null,
-                    tint = Color.White.copy(alpha = 0.55f),
-                    modifier = Modifier.size(9.dp)
+                Box(
+                    modifier = Modifier
+                        .width(18.dp)
+                        .height(2.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.35f))
                 )
+                Spacer(Modifier.width(6.dp))
+                repeat(2) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.10f))
+                    )
+                    Spacer(Modifier.width(3.dp))
+                }
             }
-
-            Spacer(Modifier.height(6.dp))
 
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(glass.background.copy(alpha = 0.95f))
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
-                    .padding(horizontal = 8.dp, vertical = 7.dp)
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = Icons.Outlined.Link,
                         contentDescription = null,
                         tint = Color(0xFF4E9BFF),
-                        modifier = Modifier.size(10.dp)
+                        modifier = Modifier.size(8.dp)
                     )
-                    Spacer(Modifier.width(6.dp))
+                    Spacer(Modifier.width(4.dp))
                     Text(
                         text = "Paste a video link",
-                        fontSize = 8.sp,
+                        fontSize = 6.sp,
                         fontFamily = fontFamily,
-                        color = textColor.copy(alpha = 0.45f),
-                        modifier = Modifier.weight(1f)
+                        color = textColor.copy(alpha = 0.45f)
                     )
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(Color(0x334E9BFF))
-                            .padding(horizontal = 5.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "Paste",
-                            fontSize = 6.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = fontFamily,
-                            color = Color(0xFF9CC7FF)
-                        )
-                    }
                 }
-
-                Spacer(Modifier.height(6.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -984,32 +995,24 @@ private fun NotchMiniPreview(
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(14.dp)
-                                .clip(RoundedCornerShape(4.dp))
+                                .height(11.dp)
+                                .clip(RoundedCornerShape(3.dp))
                                 .background(
                                     if (active) Color(0x3330D158)
                                     else Color.White.copy(alpha = 0.05f)
-                                )
-                                .border(
-                                    0.5.dp,
-                                    if (active) Color(0x6630D158)
-                                    else Color.White.copy(alpha = 0.07f),
-                                    RoundedCornerShape(4.dp)
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
-                                fontSize = 5.sp,
+                                fontSize = 4.sp,
                                 fontFamily = fontFamily,
                                 color = if (active) Color(0xFF30D158)
-                                else textColor.copy(alpha = 0.65f)
+                                else textColor.copy(alpha = 0.60f)
                             )
                         }
                     }
                 }
-
-                Spacer(Modifier.height(6.dp))
 
                 Box(
                     modifier = Modifier
@@ -1020,7 +1023,7 @@ private fun NotchMiniPreview(
                 ) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.65f)
+                            .fillMaxWidth(0.68f)
                             .height(5.dp)
                             .clip(CircleShape)
                             .background(
@@ -1031,29 +1034,51 @@ private fun NotchMiniPreview(
                     )
                 }
 
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.weight(1f))
 
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(18.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFF1FA84A), Color(0xFF30D158))
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Download",
-                        fontSize = 7.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = fontFamily,
-                        color = Color(0xFF04140A)
-                    )
+                    repeat(4) { index ->
+                        Box(
+                            modifier = Modifier
+                                .size(if (index == 0) 10.dp else 6.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (index == 0) ProfileBlue
+                                    else Color.White.copy(alpha = 0.22f)
+                                )
+                        )
+                    }
                 }
             }
+        }
+
+        // The collapsed bubble, floating beside the card.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(start = 2.dp, bottom = 2.dp)
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(glass.background.copy(alpha = 0.96f))
+                .border(
+                    1.dp,
+                    Color.White.copy(alpha = 0.26f),
+                    CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Download,
+                contentDescription = null,
+                tint = ProfileGreen,
+                modifier = Modifier.size(12.dp)
+            )
         }
     }
 }

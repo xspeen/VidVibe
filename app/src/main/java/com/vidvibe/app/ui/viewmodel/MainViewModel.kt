@@ -245,8 +245,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsStore.setOnboardingSeen(seen) }
     }
 
-    fun setNotchEnabled(enabled: Boolean) {
-        viewModelScope.launch { settingsStore.setNotchEnabled(enabled) }
+    fun setFloatingWindowEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setFloatingWindowEnabled(enabled) }
     }
 
     fun requestTab(index: Int) {

@@ -34,7 +34,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.formatFileSize
-import com.vidvibe.app.overlay.NotchOverlayService
+import com.vidvibe.app.floating.FloatingWindowService
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
 import com.vidvibe.app.ui.components.CustomBottomNav
 import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
@@ -89,18 +89,18 @@ fun VidVibeApp(viewModel: MainViewModel) {
     }
 
     var overlayGranted by remember {
-        mutableStateOf(NotchOverlayService.hasPermission(context))
+        mutableStateOf(FloatingWindowService.hasPermission(context))
     }
-    var pendingNotchEnable by remember { mutableStateOf(false) }
+    var pendingWindowEnable by remember { mutableStateOf(false) }
 
     val overlayLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
-        overlayGranted = NotchOverlayService.hasPermission(context)
-        if (overlayGranted && pendingNotchEnable) {
-            viewModel.setNotchEnabled(true)
+        overlayGranted = FloatingWindowService.hasPermission(context)
+        if (overlayGranted && pendingWindowEnable) {
+            viewModel.setFloatingWindowEnabled(true)
         }
-        pendingNotchEnable = false
+        pendingWindowEnable = false
     }
 
     fun openOverlaySettings() {
@@ -116,23 +116,23 @@ fun VidVibeApp(viewModel: MainViewModel) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                overlayGranted = NotchOverlayService.hasPermission(context)
+                overlayGranted = FloatingWindowService.hasPermission(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    LaunchedEffect(settings.notchEnabled, overlayGranted) {
+    LaunchedEffect(settings.floatingWindowEnabled, overlayGranted) {
         if (!overlayGranted) {
-            if (settings.notchEnabled) viewModel.setNotchEnabled(false)
-            NotchOverlayService.stop(context)
+            if (settings.floatingWindowEnabled) viewModel.setFloatingWindowEnabled(false)
+            FloatingWindowService.stop(context)
             return@LaunchedEffect
         }
-        if (settings.notchEnabled) {
-            NotchOverlayService.start(context)
+        if (settings.floatingWindowEnabled) {
+            FloatingWindowService.start(context)
         } else {
-            NotchOverlayService.stop(context)
+            FloatingWindowService.stop(context)
         }
     }
 
@@ -216,19 +216,19 @@ fun VidVibeApp(viewModel: MainViewModel) {
             else -> MeScreen(
                 settings = settings,
                 librarySizeLabel = formatFileSize(videos.sumOf { it.sizeBytes }),
-                notchEnabled = settings.notchEnabled,
+                floatingWindowEnabled = settings.floatingWindowEnabled,
                 overlayPermissionGranted = overlayGranted,
-                onNotchEnabledChange = { enabled ->
+                onFloatingWindowEnabledChange = { enabled ->
                     if (enabled) {
-                        if (NotchOverlayService.hasPermission(context)) {
-                            viewModel.setNotchEnabled(true)
+                        if (FloatingWindowService.hasPermission(context)) {
+                            viewModel.setFloatingWindowEnabled(true)
                         } else {
-                            pendingNotchEnable = true
+                            pendingWindowEnable = true
                             openOverlaySettings()
                         }
                     } else {
-                        viewModel.setNotchEnabled(false)
-                        NotchOverlayService.stop(context)
+                        viewModel.setFloatingWindowEnabled(false)
+                        FloatingWindowService.stop(context)
                     }
                 },
                 onRequestOverlayPermission = { openOverlaySettings() },

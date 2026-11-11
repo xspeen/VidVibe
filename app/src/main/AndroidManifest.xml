@@ -32,12 +32,12 @@
         tools:targetApi="35">
 
         <service
-            android:name=".overlay.NotchOverlayService"
+            android:name=".floating.FloatingWindowService"
             android:exported="false"
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="Floating notch navigation overlay with quick paste and tab shortcuts, enabled by the user" />
+                android:value="User-enabled floating app window that keeps VidVibe navigation usable over other apps" />
         </service>
 
         <activity
