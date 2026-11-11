@@ -243,6 +243,10 @@ class NotchOverlayService : Service() {
         owner.onResume()
         lifecycleOwner = owner
 
+        // Measure the real status bar / camera cutout so the overlay can be
+        // anchored to the hardware notch instead of a guessed offset.
+        val anchor = computeOverlayAnchor()
+
         val view = ComposeView(this).apply {
             isFocusable = true
             isFocusableInTouchMode = true
@@ -272,16 +276,15 @@ class NotchOverlayService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayWindowType(),
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            overlayFlags(focusable = false),
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
-            x = 0
-            // Sit just under the phone's own camera cutout / status bar so the
-            // selfie camera stays visible and the pill lines up with the device.
-            y = topAnchorPx() + dp(4)
+            // FLAG_LAYOUT_NO_LIMITS lets these coordinates be measured from the
+            // physical top of the display, so the window anchors directly to the
+            // hardware notch instead of the usable content area.
+            x = anchor.centerOffsetPx
+            y = anchor.topPx
         }
 
         overlayView = view
@@ -289,18 +292,21 @@ class NotchOverlayService : Service() {
         return runCatching { windowManager.addView(view, params) }.isSuccess
     }
 
+    private fun overlayFlags(focusable: Boolean): Int {
+        var flags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+            WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+        if (!focusable) {
+            flags = flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        return flags
+    }
+
     private fun setPanelFocus(focusable: Boolean) {
         val view = overlayView ?: return
         val params = overlayParams ?: return
 
-        params.flags = if (focusable) {
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-        } else {
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-        }
+        params.flags = overlayFlags(focusable)
         params.softInputMode = if (focusable) {
             WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
         } else {
@@ -413,15 +419,71 @@ class NotchOverlayService : Service() {
             capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)
     }
 
-    private fun topAnchorPx(): Int {
+    private data class OverlayAnchor(
+        val topPx: Int,
+        val centerOffsetPx: Int
+    )
+
+    /**
+     * Resolves the exact top inset and horizontal centre of the device's own
+     * status bar / camera cutout. With a cutout the pill is centred on the
+     * hardware notch; without one it sits just below the status bar.
+     */
+    @Suppress("DEPRECATION")
+    private fun computeOverlayAnchor(): OverlayAnchor {
+        val screenWidth = resources.displayMetrics.widthPixels
+        var topInset = statusBarHeight()
+        var cutoutTop = -1
+        var cutoutBottom = -1
+        var cutoutCenterX = screenWidth / 2
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val metrics = windowManager.currentWindowMetrics
             val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
                 WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout()
             )
-            if (insets.top > 0) return insets.top
+            if (insets.top > 0) topInset = insets.top
+
+            val cutout = metrics.windowInsets.displayCutout
+            val rect = cutout?.boundingRects?.firstOrNull {
+                it.width() > 0 && it.height() > 0 && it.top < dp(80)
+            }
+            if (rect != null) {
+                cutoutTop = rect.top
+                cutoutBottom = rect.bottom
+                cutoutCenterX = rect.centerX()
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val cutout = windowManager.defaultDisplay.cutout
+            val rect = cutout?.boundingRects?.firstOrNull {
+                it.width() > 0 && it.height() > 0 && it.top < dp(80)
+            }
+            if (rect != null) {
+                cutoutTop = rect.top
+                cutoutBottom = rect.bottom
+                cutoutCenterX = rect.centerX()
+            }
         }
-        return statusBarHeight()
+
+        val topPx = if (cutoutTop >= 0 && cutoutBottom > cutoutTop) {
+            // Align the pill's vertical centre with the camera cutout so it
+            // hugs the hardware notch (Dynamic Island style).
+            ((cutoutTop + cutoutBottom) / 2 - dp(20)).coerceAtLeast(0)
+        } else {
+            // No cutout on this device: keep the pill below the status bar.
+            topInset + dp(4)
+        }
+        // Keep the whole notch UI on-screen even when the cutout is off-centre.
+        val panelWidthPx = (screenWidth - dp(24))
+            .coerceAtMost(dp(400))
+            .coerceAtLeast(0)
+        val maxShift = ((screenWidth - panelWidthPx) / 2).coerceAtLeast(0)
+        val centerOffsetPx = if (cutoutTop >= 0) {
+            (cutoutCenterX - screenWidth / 2).coerceIn(-maxShift, maxShift)
+        } else {
+            0
+        }
+        return OverlayAnchor(topPx, centerOffsetPx)
     }
 
     private fun statusBarHeight(): Int {

@@ -786,7 +786,7 @@ private fun FloatingNotchGroup(
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    text = "A glass notch under your camera. Paste a link, watch the green bar fill, and it closes itself.",
+                    text = "A glass notch that hugs your camera cutout. Paste a link, watch the green bar fill, and it closes itself.",
                     fontSize = 11.sp,
                     color = ProfileText2,
                     lineHeight = 15.sp
