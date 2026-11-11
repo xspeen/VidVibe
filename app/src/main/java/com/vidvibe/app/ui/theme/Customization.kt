@@ -115,6 +115,7 @@ data class CustomizationSelection(
     val backgroundLook: BackgroundLook,
     val textColor: TextTone,
     val glassColor: MenuGlass,
+    val iconPack: IconPack,
     val appTheme: AppThemeMode
 )
 

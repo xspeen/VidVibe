@@ -28,6 +28,7 @@ data class AppSettings(
     val backgroundLook: String = "midnight",
     val textColor: String = "white",
     val glassColor: String = "default",
+    val iconPack: String = "line",
     val appTheme: String = "dark",
     val notificationsPrompted: Boolean = false,
     val notificationsEnabled: Boolean = true,
@@ -50,6 +51,7 @@ class SettingsStore(private val context: Context) {
         val backgroundLook = stringPreferencesKey("background_look")
         val textColor = stringPreferencesKey("text_color")
         val glassColor = stringPreferencesKey("glass_color")
+        val iconPack = stringPreferencesKey("icon_pack")
         val appTheme = stringPreferencesKey("app_theme")
         val notificationsPrompted = booleanPreferencesKey("notifications_prompted")
         val notificationsEnabled = booleanPreferencesKey("notifications_enabled")
@@ -71,6 +73,7 @@ class SettingsStore(private val context: Context) {
             backgroundLook = preferences[Keys.backgroundLook] ?: "midnight",
             textColor = preferences[Keys.textColor] ?: "white",
             glassColor = preferences[Keys.glassColor] ?: "default",
+            iconPack = preferences[Keys.iconPack] ?: "line",
             appTheme = preferences[Keys.appTheme] ?: "dark",
             notificationsPrompted = preferences[Keys.notificationsPrompted] ?: false,
             notificationsEnabled = preferences[Keys.notificationsEnabled] ?: true,
@@ -130,6 +133,7 @@ class SettingsStore(private val context: Context) {
         backgroundLook: String,
         textColor: String,
         glassColor: String,
+        iconPack: String,
         appTheme: String
     ) {
         context.vidVibeDataStore.edit { preferences ->
@@ -138,6 +142,7 @@ class SettingsStore(private val context: Context) {
             preferences[Keys.backgroundLook] = backgroundLook
             preferences[Keys.textColor] = textColor
             preferences[Keys.glassColor] = glassColor
+            preferences[Keys.iconPack] = iconPack
             preferences[Keys.appTheme] = appTheme
         }
     }

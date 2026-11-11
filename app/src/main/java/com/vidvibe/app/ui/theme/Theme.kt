@@ -49,6 +49,8 @@ fun VidVibeTheme(
         MenuGlass.Default.background,
         MenuGlass.Default.highlight
     ),
+    glassStyle: GlassStyle = GlassStyle.from(menuPalette, true),
+    iconPack: IconPack = IconPack.Line,
     content: @Composable () -> Unit
 ) {
     @Suppress("unused")
@@ -64,7 +66,9 @@ fun VidVibeTheme(
         LocalAppTextColor provides textColor,
         LocalAppFontFamily provides fontFamily,
         LocalAnimationDuration provides animationDurationMs,
-        LocalMenuPalette provides menuPalette
+        LocalMenuPalette provides menuPalette,
+        LocalGlassStyle provides glassStyle,
+        LocalIconPack provides iconPack
     ) {
         MaterialTheme(
             colorScheme = VidVibeColors.copy(

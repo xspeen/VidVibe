@@ -6,12 +6,15 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -45,6 +49,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,9 +62,15 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -67,6 +78,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -78,7 +90,9 @@ import com.vidvibe.app.ui.components.FloatingMenuState
 import com.vidvibe.app.ui.components.FloatingPanel
 import com.vidvibe.app.ui.components.VidVibeFloatingMenu
 import com.vidvibe.app.ui.theme.LocalAppBackground
+import com.vidvibe.app.ui.theme.LocalGlassStyle
 import com.vidvibe.app.ui.viewmodel.DownloadState
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 
 @Composable
@@ -497,37 +511,90 @@ private fun DownloadQueuePanel(
     onRemove: (Long) -> Unit,
     onClearFinished: () -> Unit
 ) {
+    val glass = LocalGlassStyle.current
     val finished = queue.count {
         it.state == QueueStatus.Complete ||
             it.state == QueueStatus.Failed ||
             it.state == QueueStatus.Cancelled
     }
+    val active = queue.firstOrNull { it.state == QueueStatus.Running }
+    val shape = RoundedCornerShape(22.dp)
 
-    Column(Modifier.fillMaxWidth()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(listOf(glass.bodyTop, glass.bodyBottom))
+            )
+            .border(1.dp, glass.stroke, shape)
+            .padding(horizontal = 12.dp, vertical = 13.dp)
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Download queue",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color(0xFFA0A0A8),
-                letterSpacing = 0.2.sp,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(start = 4.dp)
+                text = "QUEUE",
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White.copy(alpha = 0.42f),
+                letterSpacing = 1.1.sp,
+                modifier = Modifier.padding(start = 2.dp)
             )
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(Color.White.copy(alpha = 0.07f))
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "${queue.size}",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.66f)
+                )
+            }
+            Spacer(Modifier.weight(1f))
             if (finished > 0) {
                 Text(
                     text = "Clear finished",
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF5AA9FF),
+                    color = Color(0xFF7FB9FF),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(9.dp))
                         .clickable(onClick = onClearFinished)
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
                 )
             }
         }
+
+        if (active != null) {
+            val progress by animateFloatAsState(
+                targetValue = active.progress.coerceIn(0, 100) / 100f,
+                animationSpec = androidx.compose.animation.core.tween(320),
+                label = "queue-total"
+            )
+            Spacer(Modifier.height(9.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(Color.White.copy(alpha = 0.07f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress)
+                        .fillMaxHeight()
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF5AA9FF), Color(0xFF7CFFCB))
+                            )
+                        )
+                )
+            }
+        }
+
         Spacer(Modifier.height(10.dp))
         queue.forEach { task ->
             QueueCard(
@@ -536,8 +603,9 @@ private fun DownloadQueuePanel(
                 onRetry = { onRetry(task.id) },
                 onRemove = { onRemove(task.id) }
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(7.dp))
         }
+        Spacer(Modifier.height(1.dp))
     }
 }
 
@@ -548,6 +616,9 @@ private fun QueueCard(
     onRetry: () -> Unit,
     onRemove: () -> Unit
 ) {
+    val glass = LocalGlassStyle.current
+    val haptics = LocalHapticFeedback.current
+    val density = LocalDensity.current
     val accent = when (task.state) {
         QueueStatus.Running -> Color(0xFF5AA9FF)
         QueueStatus.Queued -> Color(0xFF9AA0AA)
@@ -557,118 +628,223 @@ private fun QueueCard(
     }
     val shape = RoundedCornerShape(16.dp)
     val running = task.state == QueueStatus.Running || task.state == QueueStatus.Queued
+    val retryable = task.state == QueueStatus.Failed || task.state == QueueStatus.Cancelled
+    val primaryLabel = if (running) "Cancel" else "Remove"
+    val primaryAction = if (running) onCancel else onRemove
 
-    Row(
+    var dragging by remember(task.id) { mutableStateOf(false) }
+    var dragX by remember(task.id) { mutableFloatStateOf(0f) }
+    val maxSwipePx = with(density) { 104.dp.toPx() }
+    val threshold = with(density) { 84.dp.toPx() }
+    val settled by animateFloatAsState(
+        targetValue = if (dragging) dragX else 0f,
+        animationSpec = if (dragging) {
+            androidx.compose.animation.core.snap()
+        } else {
+            androidx.compose.animation.core.tween(
+                durationMillis = 220,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing
+            )
+        },
+        label = "queue-swipe"
+    )
+    val progress by animateFloatAsState(
+        targetValue = task.progress.coerceIn(0, 100) / 100f,
+        animationSpec = androidx.compose.animation.core.tween(360),
+        label = "queue-progress"
+    )
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xCC121218), Color(0xB30A0A0E))
-                )
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.09f), shape)
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
+        Row(
             modifier = Modifier
-                .size(38.dp)
-                .clip(CircleShape)
-                .background(accent.copy(alpha = 0.14f)),
-            contentAlignment = Alignment.Center
+                .matchParentSize()
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            if (retryable) Color(0xFF0E3A24) else Color.Transparent,
+                            Color.Transparent,
+                            if (running) Color(0xFF3A1518) else Color(0xFF1B1B22)
+                        )
+                    )
+                )
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = when (task.state) {
-                    QueueStatus.Complete -> Icons.Outlined.Check
-                    QueueStatus.Failed -> Icons.Outlined.Close
-                    QueueStatus.Cancelled -> Icons.Outlined.Close
-                    else -> Icons.Outlined.Download
-                },
-                contentDescription = null,
-                tint = accent,
-                modifier = Modifier.size(18.dp)
+            if (retryable) {
+                Text(
+                    text = "Retry",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF7CFFCB)
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                text = primaryLabel,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (running) Color(0xFFFF8A8E) else Color.White.copy(alpha = 0.62f)
             )
         }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = task.title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(3.dp))
-            Text(
-                text = when (task.state) {
-                    QueueStatus.Queued -> "Waiting in queue"
-                    QueueStatus.Complete -> task.fileName ?: "Saved to your gallery"
-                    QueueStatus.Failed -> task.error ?: "Download failed"
-                    QueueStatus.Cancelled -> "Cancelled"
-                    QueueStatus.Running -> "${task.status}  ${task.progress}%"
-                },
-                fontSize = 10.5.sp,
-                color = if (task.state == QueueStatus.Failed) {
-                    Color(0xFFFF8A8E)
-                } else {
-                    Color(0xFF9AA0AA)
-                },
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (running) {
-                Spacer(Modifier.height(7.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(settled.roundToInt(), 0) }
+                .clip(shape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF16161D),
+                            Color(0xFF0C0C11)
+                        )
+                    )
+                )
+                .border(1.dp, glass.stroke, shape)
+                .pointerInput(task.id, task.state) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragging = true },
+                        onDragEnd = {
+                            dragging = false
+                            when {
+                                dragX <= -threshold -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    primaryAction()
+                                }
+                                dragX >= threshold && retryable -> {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onRetry()
+                                }
+                            }
+                            dragX = 0f
+                        },
+                        onDragCancel = {
+                            dragging = false
+                            dragX = 0f
+                        }
+                    ) { change, amount ->
+                        change.consume()
+                        dragX = (dragX + amount).coerceIn(-maxSwipePx, maxSwipePx)
+                    }
+                }
+                .padding(horizontal = 12.dp, vertical = 11.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(42.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val strokeWidth = 2.4.dp.toPx()
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.08f),
+                        startAngle = -90f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = Stroke(width = strokeWidth)
+                    )
+                    if (running) {
+                        drawArc(
+                            color = accent,
+                            startAngle = -90f,
+                            sweepAngle = 360f * progress,
+                            useCenter = false,
+                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+                        )
+                    }
+                }
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.10f))
+                        .size(31.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = 0.13f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(
-                                (task.progress.coerceIn(0, 100) / 100f)
-                            )
-                            .fillMaxHeight()
-                            .background(accent, RoundedCornerShape(2.dp))
+                    Icon(
+                        imageVector = when (task.state) {
+                            QueueStatus.Complete -> Icons.Outlined.Check
+                            QueueStatus.Failed,
+                            QueueStatus.Cancelled -> Icons.Outlined.Close
+                            else -> Icons.Outlined.Download
+                        },
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
-        }
-        Spacer(Modifier.width(10.dp))
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.07f))
-                .clickable {
-                    when (task.state) {
-                        QueueStatus.Queued, QueueStatus.Running -> onCancel()
-                        QueueStatus.Failed, QueueStatus.Cancelled -> onRetry()
-                        QueueStatus.Complete -> onRemove()
-                    }
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = if (running) {
-                    Icons.Outlined.Close
-                } else if (task.state == QueueStatus.Complete) {
-                    Icons.Outlined.Check
-                } else {
-                    Icons.Outlined.Refresh
-                },
-                contentDescription = when {
-                    running -> "Cancel download"
-                    task.state == QueueStatus.Complete -> "Remove from list"
-                    else -> "Retry download"
-                },
-                tint = Color.White.copy(alpha = 0.72f),
-                modifier = Modifier.size(16.dp)
-            )
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = task.title,
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = when (task.state) {
+                        QueueStatus.Queued -> "Waiting in queue"
+                        QueueStatus.Complete -> task.fileName ?: "Saved to your gallery"
+                        QueueStatus.Failed -> task.error ?: "Download failed"
+                        QueueStatus.Cancelled -> "Cancelled"
+                        QueueStatus.Running -> task.status
+                    },
+                    fontSize = 10.sp,
+                    color = if (task.state == QueueStatus.Failed) {
+                        Color(0xFFFF8A8E)
+                    } else {
+                        Color(0xFF9AA0AA)
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            if (running) {
+                Text(
+                    text = "${task.progress.coerceIn(0, 100)}%",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accent
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.055f))
+                        .border(1.dp, glass.stroke, CircleShape)
+                        .clickable {
+                            when (task.state) {
+                                QueueStatus.Complete -> onRemove()
+                                else -> onRetry()
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (task.state == QueueStatus.Complete) {
+                            Icons.Outlined.Close
+                        } else {
+                            Icons.Outlined.Refresh
+                        },
+                        contentDescription = if (task.state == QueueStatus.Complete) {
+                            "Remove from list"
+                        } else {
+                            "Retry download"
+                        },
+                        tint = Color.White.copy(alpha = 0.66f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
         }
     }
 }

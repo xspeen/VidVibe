@@ -60,11 +60,13 @@ jobs:
           VIDVIBE_KEY_PASSWORD: ${{ secrets.VIDVIBE_KEY_PASSWORD }}
         run: gradle :app:assembleRelease --stacktrace
 
-      - name: Collect release APK
+      - name: Collect release APK and source
         run: |
           mkdir -p release-artifacts
           find app/build/outputs/apk/release -name '*.apk' -print -exec cp {} release-artifacts/ \;
           (cd release-artifacts && sha256sum *.apk > SHA256SUMS.txt)
+          git archive --format=zip --prefix="VidVibe-${GITHUB_REF_NAME}/" \
+            -o "release-artifacts/VidVibe-${GITHUB_REF_NAME}-src.zip" HEAD
           ls -lh release-artifacts
           cat release-artifacts/SHA256SUMS.txt
 
@@ -136,10 +138,14 @@ jobs:
             Built automatically by GitHub Actions from the source at this tag.
 
             Assets:
-            - `app-release.apk` - optimized universal release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a, armeabi-v7a, and x86_64 native libraries)
-            - `SHA256SUMS.txt` - checksum for verifying the download
+            - `app-release.apk` - optimized universal Android release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a, armeabi-v7a, and x86_64 native libraries)
+            - `SHA256SUMS.txt` - checksum for verifying the APK download
+            - `VidVibe-${GITHUB_REF_NAME}-src.zip` - full source tree at this tag
+            - `VidVibe-<desktop version>.msi` - Windows 10/11 installer, built from the same tag
+            - `VidVibe-Windows-<desktop version>.zip` - portable Windows build
+            - `SHA256SUMS-Windows.txt` - checksums for the Windows downloads
 
-            Requirements: Android 8.0 or newer, on a 64-bit or 32-bit ARM phone.
+            Requirements: Android 8.0 or newer on a 64-bit or 32-bit ARM phone; Windows 10 or 11 on x64.
 
             If Android reports "package appears to be invalid", check that the downloaded
             file size matches `SHA256SUMS.txt` - a cut-off download is the most common
@@ -147,3 +153,67 @@ jobs:
             previous VidVibe build first; builds before 1.0.2 used a different signing key.
 
             VidVibe is free and open source under the MIT License.
+
+  windows:
+    name: Build Windows installer
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.11.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+          cache-read-only: false
+
+      - name: Cache download engine
+        uses: actions/cache@v4
+        with:
+          path: desktop/build/tools
+          key: vidvibe-desktop-tools-v1
+
+      - name: Build MSI and app image
+        run: gradle -p desktop packageMsi createDistributable --stacktrace
+
+      - name: Package portable zip and checksums
+        run: |
+          $version = (Select-String -Path desktop/build.gradle.kts -Pattern 'packageVersion = "([^"]+)"').Matches.Groups[1].Value
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Compress-Archive -Path "desktop/build/compose/binaries/main/app/VidVibe/*" -DestinationPath "dist/VidVibe-Windows-$version.zip" -Force
+          $files = @(Get-ChildItem "desktop/build/compose/binaries/main/msi/*.msi") + @(Get-ChildItem "dist/*.zip")
+          $files | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)"
+          } | Set-Content -Path "dist/SHA256SUMS-Windows.txt" -Encoding ascii
+          Get-Content "dist/SHA256SUMS-Windows.txt"
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: VidVibe-Windows-${{ github.run_number }}
+          path: |
+            desktop/build/compose/binaries/main/msi/*.msi
+            dist/*.zip
+            dist/SHA256SUMS-Windows.txt
+          if-no-files-found: error
+
+      - name: Attach Windows files to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = @()
+          $files += Get-ChildItem "desktop/build/compose/binaries/main/msi/*.msi"
+          $files += Get-ChildItem "dist/*.zip"
+          $files += Get-ChildItem "dist/SHA256SUMS-Windows.txt"
+          gh release upload $env:GITHUB_REF_NAME $files.FullName --clobber

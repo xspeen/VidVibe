@@ -72,6 +72,8 @@ import com.vidvibe.app.data.TrimExporter
 import com.vidvibe.app.data.TrimResult
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.formatDuration
+import com.vidvibe.app.ui.components.SlideToConfirm
+import com.vidvibe.app.ui.components.SuccessCelebration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToLong
@@ -702,30 +704,18 @@ private fun TrimControls(
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .weight(1.5f)
-                    .height(48.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(
-                        if (exporting) TrimGreen.copy(alpha = 0.35f) else TrimGreen
-                    )
-                    .clickable(enabled = !exporting, onClick = onExport),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (exporting) {
-                        "Saving ${(progress * 100).toInt()}%"
-                    } else {
-                        "Save clip to gallery"
-                    },
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
+            SlideToConfirm(
+                label = if (exporting) {
+                    "Saving ${(progress * 100).toInt()}%"
+                } else {
+                    "Slide to save clip"
+                },
+                enabled = !exporting,
+                accent = TrimGreen,
+                onConfirm = onExport,
+                height = 48.dp,
+                modifier = Modifier.weight(1.5f)
+            )
         }
 
         if (error != null) {
@@ -867,22 +857,12 @@ private fun TrimSavedOverlay(name: String, onDone: () -> Unit) {
                 .padding(horizontal = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .size(74.dp)
-                    .clip(CircleShape)
-                    .background(TrimGreen.copy(alpha = 0.16f))
-                    .border(1.dp, TrimGreen.copy(alpha = 0.44f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Check,
-                    contentDescription = null,
-                    tint = TrimGreen,
-                    modifier = Modifier.size(36.dp)
-                )
-            }
-            Spacer(Modifier.height(18.dp))
+            SuccessCelebration(
+                visible = true,
+                accent = TrimGreen,
+                size = 150.dp
+            )
+            Spacer(Modifier.height(4.dp))
             Text(
                 text = "Clip saved",
                 fontSize = 22.sp,

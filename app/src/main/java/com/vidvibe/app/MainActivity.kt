@@ -42,6 +42,8 @@ import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
 import com.vidvibe.app.ui.theme.BackgroundLook
+import com.vidvibe.app.ui.theme.GlassStyle
+import com.vidvibe.app.ui.theme.IconPack
 import com.vidvibe.app.ui.theme.MenuGlass
 import com.vidvibe.app.ui.theme.MenuPalette
 import com.vidvibe.app.ui.theme.TextTone
@@ -152,6 +154,7 @@ class MainActivity : FragmentActivity() {
             val backgroundLook = BackgroundLook.from(settings.backgroundLook)
             val textTone = TextTone.from(settings.textColor)
             val menuGlass = MenuGlass.from(settings.glassColor)
+            val iconPack = IconPack.from(settings.iconPack)
             val appTheme = AppThemeMode.from(settings.appTheme)
             val appBackground = backgroundFor(backgroundLook, appTheme)
 
@@ -161,7 +164,12 @@ class MainActivity : FragmentActivity() {
                 fontFamily = appFont.family,
                 textColor = textTone.color,
                 animationDurationMs = animationStyle.durationMs,
-                menuPalette = MenuPalette(menuGlass.background, menuGlass.highlight)
+                menuPalette = MenuPalette(menuGlass.background, menuGlass.highlight),
+                glassStyle = GlassStyle.from(
+                    MenuPalette(menuGlass.background, menuGlass.highlight),
+                    settings.liquidGlass
+                ),
+                iconPack = iconPack
             ) {
                 Box(Modifier.fillMaxSize().background(appBackground)) {
                     when {

@@ -22,8 +22,10 @@ import androidx.compose.ui.unit.dp
 import com.vidvibe.app.ui.theme.LocalAppBackground
 
 /**
- * The rotating conic wash plus the two radial glows used behind the
- * Local screen. Matches the prototype's `body` and `.fluid-bg`.
+ * Ultra-sleek app wash: one very slow conic drift, two low-intensity colour
+ * orbs, a top light and a bottom vignette. Everything sits under the content
+ * at single-digit alpha so text stays crisp and the glass surfaces above keep
+ * their contrast. Pure black stays pure black.
  */
 @Composable
 fun FluidBackground(modifier: Modifier = Modifier) {
@@ -43,12 +45,12 @@ fun FluidBackground(modifier: Modifier = Modifier) {
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 25000, easing = LinearEasing),
+            animation = tween(durationMillis = 64000, easing = LinearEasing),
             repeatMode = RepeatMode.Restart
         ),
         label = "fluid-angle"
     )
-    val tint = base.copy(alpha = 0.55f)
+    val tint = base.copy(alpha = 0.34f)
 
     Box(
         modifier = modifier
@@ -60,10 +62,10 @@ fun FluidBackground(modifier: Modifier = Modifier) {
                 .fillMaxSize()
                 .graphicsLayer {
                     rotationZ = angle
-                    scaleX = 1.8f
-                    scaleY = 1.8f
+                    scaleX = 2.2f
+                    scaleY = 2.2f
                 }
-                .blur(40.dp)
+                .blur(64.dp)
                 .background(
                     Brush.sweepGradient(
                         listOf(
@@ -80,16 +82,32 @@ fun FluidBackground(modifier: Modifier = Modifier) {
         Canvas(Modifier.fillMaxSize()) {
             drawRect(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0x260078FF), Color.Transparent),
-                    center = Offset(size.width * 0.10f, size.height * 0.10f),
-                    radius = size.width * 0.75f
+                    colors = listOf(Color(0x1A0078FF), Color.Transparent),
+                    center = Offset(size.width * 0.08f, size.height * 0.06f),
+                    radius = size.width * 0.82f
                 )
             )
             drawRect(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color(0x1A00C896), Color.Transparent),
-                    center = Offset(size.width * 0.90f, size.height * 0.90f),
-                    radius = size.width * 0.75f
+                    colors = listOf(Color(0x1200C896), Color.Transparent),
+                    center = Offset(size.width * 0.94f, size.height * 0.92f),
+                    radius = size.width * 0.82f
+                )
+            )
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0x10FFFFFF), Color.Transparent),
+                    center = Offset(size.width * 0.5f, -size.height * 0.04f),
+                    radius = size.width * 0.9f
+                )
+            )
+            drawRect(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.Transparent,
+                        Color.Transparent,
+                        Color.Black.copy(alpha = 0.28f)
+                    )
                 )
             )
         }

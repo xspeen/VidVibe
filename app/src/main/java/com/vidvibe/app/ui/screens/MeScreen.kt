@@ -4,6 +4,7 @@ import android.os.Environment
 import android.os.StatFs
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
@@ -51,6 +52,7 @@ import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
@@ -108,10 +110,15 @@ import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
 import com.vidvibe.app.ui.theme.BackgroundLook
 import com.vidvibe.app.ui.theme.CustomizationSelection
+import com.vidvibe.app.ui.theme.GlassStyle
+import com.vidvibe.app.ui.theme.IconPack
 import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.theme.LocalAppTextColor
+import com.vidvibe.app.ui.theme.LocalGlassStyle
 import com.vidvibe.app.ui.theme.MenuGlass
+import com.vidvibe.app.ui.theme.MenuPalette
 import com.vidvibe.app.ui.theme.TextTone
+import com.vidvibe.app.ui.theme.backgroundFor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -344,6 +351,7 @@ private fun AppSettingsPage(
     }
     var textTone by remember { mutableStateOf(TextTone.from(settings.textColor)) }
     var glass by remember { mutableStateOf(MenuGlass.from(settings.glassColor)) }
+    var iconPack by remember { mutableStateOf(IconPack.from(settings.iconPack)) }
     var theme by remember { mutableStateOf(AppThemeMode.from(settings.appTheme)) }
     var showSuccess by remember { mutableStateOf(false) }
 
@@ -384,6 +392,14 @@ private fun AppSettingsPage(
                     onClearCookies = onClearCookies
                 )
 
+                CustomizationPreview(
+                    look = backgroundLook,
+                    tone = textTone,
+                    glass = glass,
+                    iconPack = iconPack,
+                    theme = theme
+                )
+
                 CustomGroup(
                     icon = Icons.Outlined.AutoAwesome,
                     title = "Animation Style"
@@ -418,6 +434,26 @@ private fun AppSettingsPage(
                                 onClick = { font = option },
                                 fontFamily = option.family,
                                 modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                CustomGroup(
+                    icon = Icons.Outlined.GridView,
+                    title = "Icon Pack"
+                ) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        IconPack.entries.forEach { option ->
+                            OptionButton(
+                                label = option.label,
+                                selected = iconPack == option,
+                                onClick = { iconPack = option },
+                                modifier = Modifier.width(96.dp)
                             )
                         }
                     }
@@ -509,6 +545,7 @@ private fun AppSettingsPage(
                                 backgroundLook = backgroundLook,
                                 textColor = textTone,
                                 glassColor = glass,
+                                iconPack = iconPack,
                                 appTheme = theme
                             )
                         )
@@ -650,34 +687,154 @@ private fun CustomGroup(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val glass = LocalGlassStyle.current
+    val tone = LocalAppTextColor.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp)
             .padding(bottom = 16.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(ProfileSurface)
-            .border(1.dp, ProfileBorder, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.verticalGradient(listOf(glass.bodyTop, glass.bodyBottom)))
+            .border(1.dp, glass.stroke, RoundedCornerShape(20.dp))
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = ProfileText2,
+                tint = tone.copy(alpha = 0.55f),
                 modifier = Modifier.size(16.dp)
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 text = title.uppercase(),
-                fontSize = 13.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                color = ProfileText2,
-                letterSpacing = 0.65.sp
+                color = tone.copy(alpha = 0.55f),
+                letterSpacing = 0.85.sp
             )
         }
         Spacer(Modifier.height(12.dp))
         content()
+    }
+}
+
+@Composable
+private fun CustomizationPreview(
+    look: BackgroundLook,
+    tone: TextTone,
+    glass: MenuGlass,
+    iconPack: IconPack,
+    theme: AppThemeMode
+) {
+    val style = GlassStyle.from(MenuPalette(glass.background, glass.highlight), true)
+    val shape = RoundedCornerShape(22.dp)
+    val previewBackground = backgroundFor(look, theme)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 18.dp)
+            .clip(shape)
+            .background(
+                Brush.linearGradient(
+                    listOf(previewBackground, Color(0xFF07070A))
+                )
+            )
+            .border(1.dp, style.stroke, shape)
+            .padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(84.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(previewBackground, Color.Black.copy(alpha = 0.85f))
+                    )
+                )
+                .border(1.dp, style.stroke, RoundedCornerShape(18.dp)),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Row(
+                modifier = Modifier
+                    .padding(7.dp)
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(glass.background)
+                    .border(1.dp, style.stroke, RoundedCornerShape(9.dp))
+                    .padding(vertical = 5.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                repeat(4) { index ->
+                    Box(
+                        modifier = Modifier
+                            .size(if (iconPack == IconPack.Bold) 5.dp else 4.dp)
+                            .clip(if (index == 0) CircleShape else RoundedCornerShape(1.dp))
+                            .background(
+                                if (index == 0) {
+                                    tone.color
+                                } else {
+                                    Color.White.copy(alpha = 0.32f)
+                                }
+                            )
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = "LIVE PREVIEW",
+                fontSize = 8.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.2.sp,
+                color = tone.color.copy(alpha = 0.45f)
+            )
+            Spacer(Modifier.height(5.dp))
+            Text(
+                text = "Your library, your glass",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = tone.color,
+                maxLines = 2
+            )
+            Spacer(Modifier.height(9.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                PreviewChip(
+                    text = glass.label,
+                    background = glass.background,
+                    border = style.indicatorStroke
+                )
+                PreviewChip(
+                    text = "${iconPack.label} icons",
+                    background = Color.White.copy(alpha = 0.05f),
+                    border = style.stroke
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewChip(text: String, background: Color, border: Color) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(background)
+            .border(1.dp, border, RoundedCornerShape(8.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 8.5.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White.copy(alpha = 0.78f)
+        )
     }
 }
 
@@ -689,16 +846,24 @@ private fun OptionButton(
     modifier: Modifier = Modifier,
     fontFamily: FontFamily = FontFamily.SansSerif
 ) {
+    val background by animateColorAsState(
+        targetValue = if (selected) ProfileBlue else Color.White.copy(alpha = 0.05f),
+        animationSpec = tween(220),
+        label = "option-background"
+    )
+    val border by animateColorAsState(
+        targetValue = if (selected) ProfileBlue else Color.White.copy(alpha = 0.10f),
+        animationSpec = tween(220),
+        label = "option-border"
+    )
     Box(
         modifier = modifier
             .height(40.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (selected) ProfileBlue else Color.White.copy(alpha = 0.05f)
-            )
+            .background(background)
             .border(
                 width = 1.dp,
-                color = if (selected) ProfileBlue else Color.White.copy(alpha = 0.10f),
+                color = border,
                 shape = RoundedCornerShape(10.dp)
             )
             .clickable(onClick = onClick),

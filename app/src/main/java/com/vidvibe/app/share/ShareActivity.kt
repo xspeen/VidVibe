@@ -16,6 +16,8 @@ import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
 import com.vidvibe.app.ui.theme.BackgroundLook
+import com.vidvibe.app.ui.theme.GlassStyle
+import com.vidvibe.app.ui.theme.IconPack
 import com.vidvibe.app.ui.theme.MenuGlass
 import com.vidvibe.app.ui.theme.MenuPalette
 import com.vidvibe.app.ui.theme.TextTone
@@ -61,7 +63,12 @@ class ShareActivity : ComponentActivity() {
                 fontFamily = AppFont.from(settings.appFont).family,
                 textColor = TextTone.from(settings.textColor).color,
                 animationDurationMs = AnimationStyle.from(settings.animationStyle).durationMs,
-                menuPalette = MenuPalette(glass.background, glass.highlight)
+                menuPalette = MenuPalette(glass.background, glass.highlight),
+                glassStyle = GlassStyle.from(
+                    MenuPalette(glass.background, glass.highlight),
+                    settings.liquidGlass
+                ),
+                iconPack = IconPack.from(settings.iconPack)
             ) {
                 ShareSheet(
                     initialLink = sharedLink,

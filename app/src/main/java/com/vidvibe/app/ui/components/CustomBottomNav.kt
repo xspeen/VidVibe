@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -49,6 +50,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vidvibe.app.ui.theme.IconPack
+import com.vidvibe.app.ui.theme.LocalGlassStyle
+import com.vidvibe.app.ui.theme.LocalIconPack
 import com.vidvibe.app.ui.theme.LocalAppTextColor
 
 private enum class NavGlyph { Local, Downloader, Trash, Profile }
@@ -87,50 +91,48 @@ fun CustomBottomNav(
         label = "nav-translation"
     )
     val textColor = LocalAppTextColor.current
+    val glass = LocalGlassStyle.current
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .graphicsLayer { translationY = translation }
             .navigationBarsPadding()
-            .padding(horizontal = 12.dp, vertical = 16.dp)
+            .padding(horizontal = 14.dp, vertical = 14.dp)
     ) {
-        // A rectangle, not a pill: dark body, white glass edge.
-        val shape = RoundedCornerShape(14.dp)
+        // A soft glass slab with a single light edge. The liquid setting only
+        // changes how much light it carries, never the geometry.
+        val shape = RoundedCornerShape(20.dp)
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
+                .height(64.dp)
+                .shadow(
+                    elevation = 18.dp,
+                    shape = shape,
+                    ambientColor = glass.glow,
+                    spotColor = glass.glow
+                )
                 .clip(shape)
                 .background(
-                    Brush.verticalGradient(
-                        if (liquidGlass) {
-                            listOf(Color(0xF2141418), Color(0xF2070709))
-                        } else {
-                            listOf(Color(0xFF101014), Color(0xFF050506))
-                        }
-                    )
+                    Brush.verticalGradient(listOf(glass.bodyTop, glass.bodyBottom))
                 )
-                .border(
-                    width = 1.5.dp,
-                    color = Color.White.copy(alpha = if (liquidGlass) 0.34f else 0.12f),
-                    shape = shape
-                )
+                .border(width = 1.dp, color = glass.stroke, shape = shape)
         ) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color.White.copy(alpha = if (liquidGlass) 0.55f else 0.10f))
+                    .background(glass.sheen)
             )
 
-            val indicatorWidth = 64.dp
+            val indicatorWidth = 60.dp
             val gap = (maxWidth - indicatorWidth * destinations.size) / 8f
             val indicatorOffset by animateDpAsState(
                 targetValue = gap + (indicatorWidth + gap * 2f) * selectedIndex.toFloat(),
                 animationSpec = tween(
-                    durationMillis = 360,
+                    durationMillis = 380,
                     easing = CubicBezierEasing(0.2f, 1f, 0.3f, 1f)
                 ),
                 label = "nav-indicator"
@@ -139,15 +141,15 @@ fun CustomBottomNav(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .offset(x = indicatorOffset, y = 8.dp)
+                    .offset(x = indicatorOffset, y = 7.dp)
                     .width(indicatorWidth)
-                    .height(52.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.16f))
+                    .height(50.dp)
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(glass.indicator)
                     .border(
                         width = 1.dp,
-                        color = Color.White.copy(alpha = 0.40f),
-                        shape = RoundedCornerShape(10.dp)
+                        color = glass.indicatorStroke,
+                        shape = RoundedCornerShape(15.dp)
                     )
             )
 
@@ -288,15 +290,23 @@ private fun NavGlyph(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    val pack = LocalIconPack.current
     Canvas(modifier) {
         val s = size.minDimension / 24f
-        val w = 1.8f * s
+        val strokeWidth = when (pack) {
+            IconPack.Line -> 1.7f
+            IconPack.Rounded -> 2.1f
+            IconPack.Bold -> 2.7f
+            IconPack.Duotone -> 1.9f
+        } * s
+        fun o(x: Float, y: Float) = Offset(x * s, y * s)
+
+        fun drawGlyph(color: Color, w: Float) {
         val stroke = Stroke(
             width = w,
             cap = StrokeCap.Round,
             join = StrokeJoin.Round
         )
-        fun o(x: Float, y: Float) = Offset(x * s, y * s)
 
         when (glyph) {
             NavGlyph.Local -> {
@@ -395,6 +405,12 @@ private fun NavGlyph(
                 drawPath(body, color = color)
             }
         }
+        }
+
+        if (pack == IconPack.Duotone) {
+            drawGlyph(color.copy(alpha = 0.20f), strokeWidth * 3.6f)
+        }
+        drawGlyph(color, strokeWidth)
     }
 }
 
@@ -414,6 +430,7 @@ fun CustomSideNav(
     modifier: Modifier = Modifier
 ) {
     val textColor = LocalAppTextColor.current
+    val glass = LocalGlassStyle.current
     val railWidth by animateDpAsState(
         targetValue = if (visible) 92.dp else 0.dp,
         animationSpec = tween(
@@ -427,20 +444,14 @@ fun CustomSideNav(
         modifier = modifier
             .width(railWidth)
             .fillMaxHeight()
-            .clip(RoundedCornerShape(topEnd = 22.dp, bottomEnd = 22.dp))
+            .clip(RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp))
             .background(
-                Brush.verticalGradient(
-                    if (liquidGlass) {
-                        listOf(Color(0xF2141418), Color(0xF2070709))
-                    } else {
-                        listOf(Color(0xFF101014), Color(0xFF050506))
-                    }
-                )
+                Brush.verticalGradient(listOf(glass.bodyTop, glass.bodyBottom))
             )
             .border(
                 width = 1.dp,
-                color = Color.White.copy(alpha = if (liquidGlass) 0.20f else 0.08f),
-                shape = RoundedCornerShape(topEnd = 22.dp, bottomEnd = 22.dp)
+                color = glass.stroke,
+                shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp)
             )
     ) {
         // Fixed-width content keeps the rail from reflowing while it collapses.
@@ -522,7 +533,8 @@ private fun SideNavItem(
         animationSpec = tween(280),
         label = "side-nav-alpha"
     )
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(16.dp)
+    val glass = LocalGlassStyle.current
 
     Box(
         modifier = Modifier
@@ -535,13 +547,13 @@ private fun SideNavItem(
             }
             .clip(shape)
             .background(
-                if (selected) Color.White.copy(alpha = 0.13f) else Color.Transparent
+                if (selected) glass.indicator else Color.Transparent
             )
             .then(
                 if (selected) {
                     Modifier.border(
                         width = 1.dp,
-                        color = Color.White.copy(alpha = 0.34f),
+                        color = glass.indicatorStroke,
                         shape = shape
                     )
                 } else {

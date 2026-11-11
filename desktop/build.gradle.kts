@@ -101,7 +101,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Msi)
             packageName = "VidVibe"
-            packageVersion = "2.6.0"
+            packageVersion = "2.7.0"
             description = "VidVibe video downloader for Windows"
             vendor = "VidVibe"
             copyright = "MIT License"

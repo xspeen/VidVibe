@@ -387,6 +387,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         backgroundLook: String,
         textColor: String,
         glassColor: String,
+        iconPack: String,
         appTheme: String
     ) {
         viewModelScope.launch {
@@ -396,6 +397,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 backgroundLook = backgroundLook,
                 textColor = textColor,
                 glassColor = glassColor,
+                iconPack = iconPack,
                 appTheme = appTheme
             )
         }

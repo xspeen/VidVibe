@@ -7,6 +7,16 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -27,14 +37,19 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.formatFileSize
+import com.vidvibe.app.download.DownloadTask
+import com.vidvibe.app.download.QueueStatus
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
 import com.vidvibe.app.ui.components.CustomBottomNav
 import com.vidvibe.app.ui.components.CustomSideNav
+import com.vidvibe.app.ui.components.DownloadSavedCard
 import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
 import com.vidvibe.app.ui.components.VidVibeToastHost
 import com.vidvibe.app.ui.screens.DownloaderScreen
@@ -47,10 +62,12 @@ import com.vidvibe.app.ui.screens.TrashScreen
 import com.vidvibe.app.ui.screens.VideoPlayerScreen
 import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun VidVibeApp(viewModel: MainViewModel) {
     val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
 
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val videos by viewModel.videos.collectAsStateWithLifecycle()
@@ -74,6 +91,9 @@ fun VidVibeApp(viewModel: MainViewModel) {
     var showSiteLogin by remember { mutableStateOf(false) }
     var trimVideo by remember { mutableStateOf<VideoItem?>(null) }
     var toast by remember { mutableStateOf<String?>(null) }
+    var celebration by remember { mutableStateOf<DownloadTask?>(null) }
+    var celebratedId by remember { mutableStateOf(-1L) }
+    val appStartedAt = remember { System.currentTimeMillis() }
 
     val playerVideo = playerQueue.getOrNull(playerIndex)
 
@@ -118,6 +138,26 @@ fun VidVibeApp(viewModel: MainViewModel) {
         if (selectedTab != 0) selectionActive = false
     }
 
+    LaunchedEffect(queue) {
+        val done = queue.lastOrNull {
+            it.state == QueueStatus.Complete &&
+                it.createdAt >= appStartedAt &&
+                it.id != celebratedId
+        }
+        if (done != null) {
+            celebratedId = done.id
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            celebration = done
+        }
+    }
+
+    LaunchedEffect(celebration) {
+        if (celebration != null) {
+            delay(3400)
+            celebration = null
+        }
+    }
+
     BackHandler(enabled = selectedTab != 0 && playerVideo == null && !showTour) {
         selectedTab = 0
     }
@@ -134,8 +174,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
     ) {
         BoxWithConstraints(Modifier.fillMaxSize()) {
             val wide = maxWidth >= 600.dp && maxWidth > maxHeight
-            val content: @Composable () -> Unit = {
-                when (selectedTab) {
+            val tabContent: @Composable (Int) -> Unit = { tab ->
+                when (tab) {
                     0 -> LocalScreen(
                         videos = videos,
                         isLoading = isLoading,
@@ -202,6 +242,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
                                 backgroundLook = selection.backgroundLook.key,
                                 textColor = selection.textColor.key,
                                 glassColor = selection.glassColor.key,
+                                iconPack = selection.iconPack.key,
                                 appTheme = selection.appTheme.key
                             )
                         },
@@ -214,6 +255,45 @@ fun VidVibeApp(viewModel: MainViewModel) {
                     )
                 }
 
+            }
+            val content: @Composable () -> Unit = {
+                AnimatedContent(
+                    targetState = selectedTab,
+                    transitionSpec = {
+                        val forward = targetState > initialState
+                        val direction = if (forward) 1 else -1
+                        (
+                            fadeIn(
+                                tween(
+                                    durationMillis = 260,
+                                    easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                                )
+                            ) +
+                                slideInHorizontally(
+                                    animationSpec = tween(
+                                        durationMillis = 360,
+                                        easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                                    )
+                                ) { width -> (width / 12) * direction } +
+                                scaleIn(
+                                    initialScale = 0.988f,
+                                    animationSpec = tween(durationMillis = 360)
+                                )
+                            ).togetherWith(
+                            fadeOut(tween(durationMillis = 170)) +
+                                slideOutHorizontally(
+                                    animationSpec = tween(durationMillis = 240)
+                                ) { width -> (-width / 18) * direction } +
+                                scaleOut(
+                                    targetScale = 0.994f,
+                                    animationSpec = tween(durationMillis = 240)
+                                )
+                        )
+                    },
+                    label = "tab-content"
+                ) { tab ->
+                    tabContent(tab)
+                }
             }
 
             if (wide) {
@@ -243,6 +323,21 @@ fun VidVibeApp(viewModel: MainViewModel) {
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
+        }
+
+        celebration?.let { task ->
+            DownloadSavedCard(
+                title = task.title,
+                onDone = { celebration = null },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(
+                        start = 18.dp,
+                        end = 18.dp,
+                        bottom = if (navVisible && !navHidden) 104.dp else 22.dp
+                    )
+            )
         }
 
         VidVibeToastHost(

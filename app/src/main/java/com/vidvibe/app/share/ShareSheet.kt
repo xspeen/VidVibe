@@ -114,7 +114,7 @@ private val qualities = listOf(
     QualityChoice(360, "360p")
 )
 
-private val CardShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+private val CardShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
 private val Green = Color(0xFF30D158)
 
 /** Brand of the shared link, detected from the URL host. */
@@ -263,7 +263,11 @@ fun ShareSheet(
                             )
                         )
                     )
-                    .border(1.dp, palette.highlight, CardShape)
+                    .border(
+                        1.dp,
+                        palette.highlight.copy(alpha = 0.26f),
+                        CardShape
+                    )
             ) {
                 Column(
                     modifier = Modifier
@@ -277,9 +281,9 @@ fun ShareSheet(
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
                             .width(38.dp)
-                            .height(4.dp)
+                            .height(3.dp)
                             .clip(RoundedCornerShape(2.dp))
-                            .background(Color.White.copy(alpha = 0.28f))
+                            .background(Color.White.copy(alpha = 0.20f))
                     )
 
                     Spacer(Modifier.height(14.dp))
