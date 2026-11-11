@@ -208,7 +208,7 @@ class FloatingWindowService : Service() {
                             viewModel = viewModel,
                             settings = settings,
                             compact = collapsed,
-                            onCollapse = { setCollapsed(!collapsed) },
+                            onCollapse = { applyCollapsed(!collapsed) },
                             onClose = {
                                 viewModel.setFloatingWindowEnabled(false)
                                 stopSelf()
@@ -254,7 +254,7 @@ class FloatingWindowService : Service() {
         return added
     }
 
-    private fun setCollapsed(value: Boolean) {
+    private fun applyCollapsed(value: Boolean) {
         val view = overlayView ?: return
         val layoutParams = params ?: return
         collapsed = value
@@ -315,7 +315,7 @@ class FloatingWindowService : Service() {
     private fun openInApp() {
         // The full app is the right place for playback, so tuck the window away
         // instead of stacking two copies of the UI on top of each other.
-        setCollapsed(true)
+        applyCollapsed(true)
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
