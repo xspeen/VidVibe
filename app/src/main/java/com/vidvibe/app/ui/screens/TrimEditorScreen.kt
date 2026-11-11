@@ -108,6 +108,10 @@ fun TrimEditorScreen(
     var savedName by remember { mutableStateOf<String?>(null) }
     var playing by remember { mutableStateOf(false) }
     var positionMs by remember { mutableLongStateOf(0L) }
+    // ExoPlayer reports positions relative to a clipped item, so the start of
+    // the last applied clip is kept here to map the playhead back to the real
+    // timeline. Without it the preview bar drifts after every clip change.
+    var clipStartMs by remember { mutableLongStateOf(0L) }
 
     val player = remember(video.uri) {
         ExoPlayer.Builder(context).build().apply {
@@ -117,6 +121,7 @@ fun TrimEditorScreen(
     }
 
     fun applyClip(play: Boolean) {
+        clipStartMs = startMs
         val clip = MediaItem.Builder()
             .setUri(video.uri)
             .setClippingConfiguration(
@@ -156,9 +161,10 @@ fun TrimEditorScreen(
         }
     }
 
-    LaunchedEffect(player, playing) {
+    LaunchedEffect(player, playing, clipStartMs) {
         while (playing) {
-            positionMs = player.currentPosition.coerceIn(startMs, endMs)
+            positionMs = (clipStartMs + player.currentPosition)
+                .coerceIn(startMs, endMs)
             delay(220)
         }
     }
@@ -204,10 +210,7 @@ fun TrimEditorScreen(
                                 if (playing) {
                                     player.pause()
                                 } else {
-                                    if (
-                                        player.currentPosition < startMs ||
-                                        player.currentPosition >= endMs
-                                    ) {
+                                    if (positionMs < startMs || positionMs >= endMs) {
                                         applyClip(true)
                                     } else {
                                         player.play()
@@ -239,20 +242,18 @@ fun TrimEditorScreen(
                                 error = null
                             },
                             onSetStart = {
-                                val point = player.currentPosition.coerceIn(
+                                startMs = positionMs.coerceIn(
                                     0L,
                                     (endMs - 500L).coerceAtLeast(0L)
                                 )
-                                startMs = point
-                                applyClip(playing)
+                                error = null
                             },
                             onSetEnd = {
-                                val point = player.currentPosition.coerceIn(
+                                endMs = positionMs.coerceIn(
                                     startMs + 500L,
                                     durationMs
                                 )
-                                endMs = point
-                                applyClip(playing)
+                                error = null
                             },
                             onPreview = { applyClip(true) },
                             onExport = {
@@ -304,10 +305,7 @@ fun TrimEditorScreen(
                             if (playing) {
                                 player.pause()
                             } else {
-                                if (
-                                    player.currentPosition < startMs ||
-                                    player.currentPosition >= endMs
-                                ) {
+                                if (positionMs < startMs || positionMs >= endMs) {
                                     applyClip(true)
                                 } else {
                                     player.play()
@@ -333,20 +331,18 @@ fun TrimEditorScreen(
                             error = null
                         },
                         onSetStart = {
-                            val point = player.currentPosition.coerceIn(
+                            startMs = positionMs.coerceIn(
                                 0L,
                                 (endMs - 500L).coerceAtLeast(0L)
                             )
-                            startMs = point
-                            applyClip(playing)
+                            error = null
                         },
                         onSetEnd = {
-                            val point = player.currentPosition.coerceIn(
+                            endMs = positionMs.coerceIn(
                                 startMs + 500L,
                                 durationMs
                             )
-                            endMs = point
-                            applyClip(playing)
+                            error = null
                         },
                         onPreview = { applyClip(true) },
                         onExport = {

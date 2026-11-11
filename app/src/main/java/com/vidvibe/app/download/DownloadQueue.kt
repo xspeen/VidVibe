@@ -155,7 +155,15 @@ object DownloadQueue {
             } finally {
                 worker = null
                 running.set(false)
-                DownloadService.stopIfIdle(app)
+                // Work can be enqueued in the window between the loop's last
+                // check and the flag reset. Re-check before tearing the
+                // service down so a fresh task is never stranded in the queue
+                // with nothing consuming it.
+                if (hasWork) {
+                    DownloadService.start(app)
+                } else {
+                    DownloadService.stopIfIdle(app)
+                }
             }
         }
     }
