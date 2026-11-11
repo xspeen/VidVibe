@@ -77,6 +77,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _pasteToken = MutableStateFlow(0)
     val pasteToken: StateFlow<Int> = _pasteToken.asStateFlow()
 
+    private val _cookiesImported = MutableStateFlow(YtDlpManager.hasCookies(application))
+    val cookiesImported: StateFlow<Boolean> = _cookiesImported.asStateFlow()
+
+    private val _cookieError = MutableStateFlow<String?>(null)
+    val cookieError: StateFlow<String?> = _cookieError.asStateFlow()
+
     private var pasteCounter = 0
 
     private var refreshJob: Job? = null
@@ -152,6 +158,56 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onSystemDeleteCancelled() {
         pendingPermanentDeleteIds = emptySet()
     }
+
+    /**
+     * Copies a user-picked Netscape cookies.txt into app storage. yt-dlp reads
+     * it for every site, which is what makes private Instagram posts and
+     * Pornhub logins reachable.
+     */
+    fun importCookies(uri: Uri) {
+        viewModelScope.launch {
+            val imported = withContext(Dispatchers.IO) {
+                runCatching {
+                    val app = getApplication<Application>()
+                    val target = YtDlpManager.cookiesFile(app)
+                    val stream = app.contentResolver.openInputStream(uri)
+                        ?: return@runCatching false
+                    stream.use { source ->
+                        target.outputStream().use { sink -> source.copyTo(sink) }
+                    }
+                    val valid = target.isFile && target.length() > 0L && looksLikeCookies(target)
+                    if (!valid) target.delete()
+                    valid
+                }.getOrDefault(false)
+            }
+            _cookiesImported.value = imported
+            if (!imported) {
+                _cookieError.value =
+                    "That file is not a Netscape cookies.txt export."
+            }
+        }
+    }
+
+    fun clearCookies() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                runCatching { YtDlpManager.cookiesFile(getApplication()).delete() }
+            }
+            _cookiesImported.value = false
+        }
+    }
+
+    fun consumeCookieError() {
+        _cookieError.value = null
+    }
+
+    private fun looksLikeCookies(file: File): Boolean = runCatching {
+        file.useLines { lines ->
+            lines.take(500).any { line ->
+                !line.startsWith("#") && line.count { it == '\t' } >= 6
+            }
+        }
+    }.getOrDefault(false)
 
     fun startDownload(url: String, qualityHeight: Int) {
         if (downloadJob?.isActive == true) return

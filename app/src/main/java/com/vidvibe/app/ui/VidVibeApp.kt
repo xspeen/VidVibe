@@ -88,6 +88,22 @@ fun VidVibeApp(viewModel: MainViewModel) {
         }
     }
 
+    val cookiesImported by viewModel.cookiesImported.collectAsStateWithLifecycle()
+    val cookieError by viewModel.cookieError.collectAsStateWithLifecycle()
+
+    val cookiesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) viewModel.importCookies(uri)
+    }
+
+    LaunchedEffect(cookieError) {
+        cookieError?.let { message ->
+            showToast(message)
+            viewModel.consumeCookieError()
+        }
+    }
+
     var overlayGranted by remember {
         mutableStateOf(FloatingWindowService.hasPermission(context))
     }
@@ -243,6 +259,9 @@ fun VidVibeApp(viewModel: MainViewModel) {
                     )
                 },
                 onSubPageChanged = { profileSubPage = it },
+                cookiesImported = cookiesImported,
+                onImportCookies = { cookiesLauncher.launch(arrayOf("*/*")) },
+                onClearCookies = viewModel::clearCookies,
                 showToast = { showToast(it) }
             )
         }

@@ -16,6 +16,15 @@ interface DownloadProgressCallback {
 
 class YtDlpManager(private val context: Context) {
 
+    companion object {
+        /** Netscape-format cookies exported from a signed-in browser. */
+        fun cookiesFile(context: Context): File = File(context.filesDir, "cookies.txt")
+
+        fun hasCookies(context: Context): Boolean = cookiesFile(context).let {
+            it.isFile && it.length() > 0L
+        }
+    }
+
     suspend fun downloadVideo(
         url: String,
         qualityHeight: Int,
@@ -39,6 +48,11 @@ class YtDlpManager(private val context: Context) {
             }
         }
 
+        val cookiesPath = cookiesFile(context)
+            .takeIf { it.isFile && it.length() > 0L }
+            ?.absolutePath
+            .orEmpty()
+
         val module = Python.getInstance().getModule("yt_dlp_script")
         val descriptor = callScript(
             module = module,
@@ -46,7 +60,8 @@ class YtDlpManager(private val context: Context) {
             url = url,
             qualityHeight = qualityHeight,
             outputDirectory = outputDirectory,
-            callback = callback
+            callback = callback,
+            cookiesPath = cookiesPath
         )
 
         val jobDir = descriptor.optString("job_dir")
@@ -66,7 +81,7 @@ class YtDlpManager(private val context: Context) {
                     MediaMuxerMerge.merge(video, audio, output)
                     onProgress(100, "Saving to gallery...")
                     return@withContext output
-                } catch (mergeError: IOException) {
+                } catch (mergeError: Throwable) {
                     // The streams use a codec MediaMuxer cannot combine on this
                     // device. Retry with a progressive stream instead.
                     jobDir?.deleteRecursively()
@@ -77,7 +92,8 @@ class YtDlpManager(private val context: Context) {
                         url = url,
                         qualityHeight = qualityHeight,
                         outputDirectory = outputDirectory,
-                        callback = callback
+                        callback = callback,
+                        cookiesPath = cookiesPath
                     )
                     return@withContext finishSingle(fallback, outputDirectory)
                 }
@@ -130,7 +146,8 @@ class YtDlpManager(private val context: Context) {
         url: String,
         qualityHeight: Int,
         outputDirectory: File,
-        callback: DownloadProgressCallback
+        callback: DownloadProgressCallback,
+        cookiesPath: String
     ): JSONObject {
         try {
             val raw = module.callAttr(
@@ -138,7 +155,8 @@ class YtDlpManager(private val context: Context) {
                 url,
                 qualityHeight,
                 outputDirectory.absolutePath,
-                callback
+                callback,
+                cookiesPath
             )?.toJava(String::class.java)
                 ?: throw IOException("yt-dlp did not return a result.")
 

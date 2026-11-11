@@ -72,15 +72,19 @@ def _muxed_selector(max_height):
     return "/".join(selectors)
 
 
-def _base_options(output_dir, progress_hook, extractor_args=None):
+def _base_options(output_dir, progress_hook, extractor_args=None, cookies_path=None):
     options = {
         "quiet": True,
         "no_warnings": True,
+        "no_color": True,
+        "noprogress": True,
         "noplaylist": True,
         "restrictfilenames": True,
         "overwrites": True,
-        "retries": 3,
-        "fragment_retries": 3,
+        "retries": 5,
+        "fragment_retries": 5,
+        "extractor_retries": 3,
+        "file_access_retries": 3,
         "socket_timeout": 30,
         "concurrent_fragment_downloads": 4,
         "cachedir": os.path.join(output_dir, ".yt-dlp-cache"),
@@ -89,9 +93,15 @@ def _base_options(output_dir, progress_hook, extractor_args=None):
         "nopostoverwrites": True,
         "continuedl": True,
         "nocheckcertificate": True,
+        "geo_bypass": True,
+        "ignoreerrors": False,
     }
     if extractor_args:
         options["extractor_args"] = extractor_args
+    # A cookies.txt exported from a signed-in browser is the only way to reach
+    # private / login-only posts, so use it whenever the user imported one.
+    if cookies_path and os.path.isfile(cookies_path):
+        options["cookiefile"] = cookies_path
     return options
 
 
@@ -142,6 +152,7 @@ def _download_stream(
     end_percent,
     status_text,
     extractor_args=None,
+    cookies_path=None,
 ):
     span = max(1, end_percent - start_percent)
     last_update = [0.0]
@@ -162,7 +173,7 @@ def _download_stream(
         elif status == "finished":
             _notify(progress_callback, end_percent, status_text)
 
-    options = _base_options(output_dir, progress_hook, extractor_args)
+    options = _base_options(output_dir, progress_hook, extractor_args, cookies_path)
     options["format"] = selector
     options["outtmpl"] = os.path.join(job_dir, prefix + ".%(ext)s")
 
@@ -196,26 +207,66 @@ def _friendly_error(url, error):
 
     detail = str(error or "").strip()
     first_line = detail.splitlines()[0] if detail else ""
+    lower = detail.lower()
 
+    needs_login = any(
+        token in lower
+        for token in (
+            "login required",
+            "log in",
+            "sign in",
+            "logged-in",
+            "private",
+            "premium",
+            "only available for registered users",
+            "rate-limit reached",
+            "requested content is not available",
+            "authentication",
+            "cookies",
+            "account",
+        )
+    )
+
+    if "instagram.com" in host:
+        if needs_login:
+            return (
+                "Instagram blocked this post because it needs a signed-in account. "
+                "Export cookies.txt from a browser where you are logged in, import it "
+                "in Profile > App Settings, then try again."
+            )
+        return (
+            "Instagram did not return this video. Public reels and posts work; private "
+            "accounts need cookies.txt imported in Profile > App Settings."
+        )
+    if "pornhub" in host:
+        if needs_login:
+            return (
+                "Pornhub asked for a signed-in account for this video. Import a "
+                "cookies.txt exported from a logged-in browser in Profile > App Settings."
+            )
+        return (
+            "Pornhub did not return this video. Try the direct watch link; age-gated or "
+            "premium videos need cookies.txt."
+        )
     if "youtube.com" in host or "youtu.be" in host:
         return (
-            "YouTube did not provide a downloadable stream. The video may be "
-            "private, age-restricted, or region-locked. Try another public link."
-        )
-    if "instagram.com" in host:
-        return (
-            "Instagram only allows public posts to be downloaded. Private posts "
-            "need a login and cannot be fetched by this app."
+            "YouTube did not provide a downloadable stream. The video may be private, "
+            "age-restricted, or region-locked. Try another public link."
         )
     if "tiktok.com" in host:
         return (
-            "TikTok did not provide this video. Make sure the post is public and "
-            "the link opens in a browser."
+            "TikTok did not provide this video. Make sure the post is public and the "
+            "link opens in a browser."
         )
     if "facebook.com" in host or "fb.watch" in host:
         return (
-            "Facebook did not provide this video. Public posts work best; private "
-            "or group posts need a login."
+            "Facebook did not provide this video. Public posts work best; private or "
+            "group posts need cookies.txt."
+        )
+    if needs_login:
+        return (
+            "This site asked for a signed-in account. Import a cookies.txt exported "
+            "from a logged-in browser in Profile > App Settings."
         )
     if first_line:
         return "This link could not be downloaded. %s" % first_line[:220]
@@ -259,7 +310,7 @@ def _single_result(job_dir, path, info):
     }
 
 
-def _try_split(url, max_height, job_dir, output_dir, progress_callback):
+def _try_split(url, max_height, job_dir, output_dir, progress_callback, cookies_path=None):
     _notify(progress_callback, 1, "Finding the best video stream...")
     video_path, info = _download_stream(
         url,
@@ -271,6 +322,7 @@ def _try_split(url, max_height, job_dir, output_dir, progress_callback):
         2,
         82,
         "Downloading video...",
+        cookies_path=cookies_path,
     )
 
     _notify(progress_callback, 83, "Downloading audio...")
@@ -284,6 +336,7 @@ def _try_split(url, max_height, job_dir, output_dir, progress_callback):
         83,
         97,
         "Downloading audio...",
+        cookies_path=cookies_path,
     )
     return _merge_result(job_dir, video_path, audio_path, info)
 
@@ -298,6 +351,7 @@ def _try_muxed(
     start_percent=1,
     end_percent=97,
     label="Downloading video...",
+    cookies_path=None,
 ):
     _notify(progress_callback, start_percent, label)
     path, info = _download_stream(
@@ -311,11 +365,12 @@ def _try_muxed(
         end_percent,
         label,
         extractor_args=extractor_args,
+        cookies_path=cookies_path,
     )
     return _single_result(job_dir, path, info)
 
 
-def download_video(url, quality_height, output_directory, progress_callback):
+def download_video(url, quality_height, output_directory, progress_callback, cookies_path=""):
     """Called from Kotlin through Chaquopy.
 
     Returns a JSON string describing either a merge job (video + audio paths)
@@ -335,7 +390,12 @@ def download_video(url, quality_height, output_directory, progress_callback):
     split_error = None
     try:
         result = _try_split(
-            clean_url, max_height, job_dir, output_directory, progress_callback
+            clean_url,
+            max_height,
+            job_dir,
+            output_directory,
+            progress_callback,
+            cookies_path=cookies_path,
         )
         _notify(progress_callback, 98, "Merging video and audio...")
         return json.dumps(result)
@@ -359,6 +419,7 @@ def download_video(url, quality_height, output_directory, progress_callback):
             job_dir,
             output_directory,
             progress_callback,
+            cookies_path=cookies_path,
         )
         return json.dumps(result)
     except Exception:
@@ -377,6 +438,7 @@ def download_video(url, quality_height, output_directory, progress_callback):
             start_percent=1,
             end_percent=97,
             label="Trying the mobile stream...",
+            cookies_path=cookies_path,
         )
         return json.dumps(result)
     except Exception:
@@ -393,6 +455,7 @@ def download_video(url, quality_height, output_directory, progress_callback):
             start_percent=1,
             end_percent=97,
             label="Trying the best available stream...",
+            cookies_path=cookies_path,
         )
         return json.dumps(result)
     except Exception:
@@ -400,7 +463,7 @@ def download_video(url, quality_height, output_directory, progress_callback):
         raise RuntimeError(_friendly_error(clean_url, split_error))
 
 
-def download_fallback(url, quality_height, output_directory, progress_callback):
+def download_fallback(url, quality_height, output_directory, progress_callback, cookies_path=""):
     """Muxed-only fallback used when the on-device merge cannot run."""
     clean_url = str(url or "").strip()
     if not clean_url:
@@ -428,6 +491,7 @@ def download_fallback(url, quality_height, output_directory, progress_callback):
                 start_percent=1,
                 end_percent=98,
                 label="Downloading video...",
+                cookies_path=cookies_path,
             )
             return json.dumps(result)
         except Exception as error:
@@ -448,6 +512,7 @@ def download_fallback(url, quality_height, output_directory, progress_callback):
             start_percent=1,
             end_percent=98,
             label="Downloading video...",
+            cookies_path=cookies_path,
         )
         return json.dumps(result)
     except Exception:

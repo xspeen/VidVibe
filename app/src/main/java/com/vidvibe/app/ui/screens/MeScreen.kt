@@ -51,6 +51,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Settings
@@ -141,6 +142,9 @@ fun MeScreen(
     onRequestOverlayPermission: () -> Unit,
     onApplyCustomization: (CustomizationSelection) -> Unit,
     onSubPageChanged: (Boolean) -> Unit,
+    cookiesImported: Boolean = false,
+    onImportCookies: (() -> Unit)? = null,
+    onClearCookies: () -> Unit = {},
     showToast: (String) -> Unit
 ) {
     var page by rememberSaveable { mutableStateOf(ProfilePage.Home) }
@@ -191,6 +195,9 @@ fun MeScreen(
                 onRequestOverlayPermission = onRequestOverlayPermission,
                 onBack = { page = ProfilePage.Home },
                 onApplyCustomization = onApplyCustomization,
+                cookiesImported = cookiesImported,
+                onImportCookies = onImportCookies,
+                onClearCookies = onClearCookies,
                 showToast = showToast
             )
         }
@@ -329,6 +336,9 @@ private fun AppSettingsPage(
     onRequestOverlayPermission: () -> Unit,
     onBack: () -> Unit,
     onApplyCustomization: (CustomizationSelection) -> Unit,
+    cookiesImported: Boolean,
+    onImportCookies: (() -> Unit)?,
+    onClearCookies: () -> Unit,
     showToast: (String) -> Unit
 ) {
     val background = LocalAppBackground.current
@@ -373,6 +383,12 @@ private fun AppSettingsPage(
                     .navigationBarsPadding()
                     .padding(bottom = 100.dp)
             ) {
+                SiteLoginGroup(
+                    cookiesImported = cookiesImported,
+                    onImportCookies = onImportCookies,
+                    onClearCookies = onClearCookies
+                )
+
                 FloatingWindowGroup(
                     enabled = floatingWindowEnabled,
                     overlayPermissionGranted = overlayPermissionGranted,
@@ -755,6 +771,124 @@ private fun GlassColorDot(
             )
             .clickable(onClick = onClick)
     )
+}
+
+@Composable
+private fun SiteLoginGroup(
+    cookiesImported: Boolean,
+    onImportCookies: (() -> Unit)?,
+    onClearCookies: () -> Unit
+) {
+    val currentText = LocalAppTextColor.current
+
+    CustomGroup(
+        icon = Icons.Outlined.Lock,
+        title = "Site Logins"
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "cookies.txt",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = currentText
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = if (cookiesImported) {
+                        "Imported. Private and login-only videos can be fetched."
+                    } else {
+                        "Not imported. Private Instagram posts and Pornhub logins need it."
+                    },
+                    fontSize = 11.sp,
+                    color = if (cookiesImported) ProfileGreen.copy(alpha = 0.90f) else ProfileText2,
+                    lineHeight = 15.sp
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (cookiesImported) ProfileGreen
+                        else Color.White.copy(alpha = 0.22f)
+                    )
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(19.dp))
+                    .background(
+                        if (onImportCookies != null) ProfileBlue.copy(alpha = 0.22f)
+                        else Color.White.copy(alpha = 0.05f)
+                    )
+                    .border(
+                        1.dp,
+                        if (onImportCookies != null) ProfileBlue.copy(alpha = 0.45f)
+                        else Color.White.copy(alpha = 0.08f),
+                        RoundedCornerShape(19.dp)
+                    )
+                    .then(
+                        if (onImportCookies != null) {
+                            Modifier.clickable(onClick = onImportCookies)
+                        } else {
+                            Modifier
+                        }
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (onImportCookies != null) "Import cookies.txt" else "Open VidVibe to import",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (onImportCookies != null) currentText
+                    else currentText.copy(alpha = 0.45f)
+                )
+            }
+
+            if (cookiesImported) {
+                Box(
+                    modifier = Modifier
+                        .width(88.dp)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(19.dp))
+                        .background(Color(0x22FF5A5F))
+                        .border(1.dp, Color(0x55FF5A5F), RoundedCornerShape(19.dp))
+                        .clickable(onClick = onClearCookies),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Remove",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFFFF8A8E)
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            text = "Export a Netscape-format cookies.txt from a browser where you are signed in. It stays on this device.",
+            fontSize = 10.sp,
+            color = ProfileText2,
+            lineHeight = 14.sp
+        )
+    }
 }
 
 @Composable

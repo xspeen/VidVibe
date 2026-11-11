@@ -14,7 +14,11 @@ import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
+import android.view.MotionEvent
+import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
+import android.widget.FrameLayout
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.OnBackPressedDispatcherOwner
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
@@ -71,7 +75,9 @@ class FloatingWindowService : Service() {
     companion object {
         private const val CHANNEL_ID = "vidvibe_floating_window"
         private const val NOTIFICATION_ID = 4802
-        private const val PREFS = "floating_window_state"
+        // v2: the default size and focus behaviour changed, so old saved
+        // geometry is deliberately not reused.
+        private const val PREFS = "floating_window_state_v2"
 
         private const val KEY_X = "x"
         private const val KEY_Y = "y"
@@ -110,12 +116,18 @@ class FloatingWindowService : Service() {
         ).get(MainViewModel::class.java)
     }
 
-    private var overlayView: ComposeView? = null
+    private var overlayView: View? = null
     private var params: WindowManager.LayoutParams? = null
     private var lifecycleOwner: FloatingWindowOwner? = null
 
     private var expandedWidthPx = 0
     private var expandedHeightPx = 0
+
+    // A focusable overlay takes the back key and the keyboard away from the app
+    // behind it, which makes multitasking feel broken. The window stays
+    // non-focusable and only borrows focus while a text field is on screen.
+    private var wantsFocus = false
+    private var focusable = false
 
     // Compose state: the window content swaps between the full card and the
     // compact bubble, so the flag has to be observable.
@@ -189,17 +201,27 @@ class FloatingWindowService : Service() {
         collapsed = prefs.getBoolean(KEY_COLLAPSED, false)
 
         val startX = prefs.getInt(KEY_X, (screenWidth - expandedWidthPx) / 2)
-        val startY = prefs.getInt(KEY_Y, dp(64))
+        val startY = prefs.getInt(KEY_Y, dp(72))
 
-        val view = ComposeView(this).apply {
+        val root = OverlayRoot(this).apply {
+            onTouchDownInside = {
+                // A tap inside means the user is back in the window, so lend it
+                // focus again if a text field needs the keyboard.
+                if (wantsFocus) applyFocusable(true)
+            }
+            onTouchOutside = {
+                // A tap on the app behind hands focus back to it, so its back
+                // key and keyboard work again.
+                if (focusable) applyFocusable(false)
+            }
+        }
+
+        val content = ComposeView(this).apply {
             isFocusable = true
             isFocusableInTouchMode = true
             setViewCompositionStrategy(
                 ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
             )
-            setViewTreeLifecycleOwner(owner)
-            setViewTreeSavedStateRegistryOwner(owner)
-            setViewTreeViewModelStoreOwner(owner)
             setContent {
                 val settings by viewModel.settings.collectAsState()
                 CompositionLocalProvider(LocalOnBackPressedDispatcherOwner provides owner) {
@@ -218,19 +240,36 @@ class FloatingWindowService : Service() {
                             onResize = { dx, dy -> resizeBy(dx, dy) },
                             onResizeEnd = { persist() },
                             onOpenInApp = { openInApp() },
-                            onRequestOverlayPermission = { }
+                            onRequestOverlayPermission = { },
+                            onFocusModeChange = { setFocusWanted(it) }
                         )
                     }
                 }
             }
         }
 
+        root.addView(
+            content,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        setViewTreeLifecycleOwner(root, owner)
+        setViewTreeSavedStateRegistryOwner(root, owner)
+        setViewTreeViewModelStoreOwner(root, owner)
+
         val layoutParams = WindowManager.LayoutParams(
             if (collapsed) collapsedSize() else expandedWidthPx,
             if (collapsed) collapsedSize() else expandedHeightPx,
             overlayWindowType(),
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+            // Not focusable by default: the app behind keeps window focus, the
+            // back key and the keyboard. Touches outside the card still reach
+            // it because of FLAG_NOT_TOUCH_MODAL.
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
@@ -247,11 +286,37 @@ class FloatingWindowService : Service() {
             }
         }
 
-        overlayView = view
+        overlayView = root
         params = layoutParams
-        val added = runCatching { windowManager.addView(view, layoutParams) }.isSuccess
+        focusable = false
+        val added = runCatching { windowManager.addView(root, layoutParams) }.isSuccess
         if (added) clampToScreen()
         return added
+    }
+
+    /** The shell reports whether a text field is on screen and needs the IME. */
+    private fun setFocusWanted(wanted: Boolean) {
+        wantsFocus = wanted
+        applyFocusable(wanted)
+    }
+
+    private fun applyFocusable(value: Boolean) {
+        if (focusable == value) return
+        val view = overlayView ?: return
+        val layoutParams = params ?: return
+        focusable = value
+        layoutParams.flags = if (value) {
+            layoutParams.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE.inv()
+        } else {
+            layoutParams.flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        }
+        runCatching { windowManager.updateViewLayout(view, layoutParams) }
+        if (value) {
+            view.post { runCatching { view.requestFocus() } }
+        } else {
+            val imm = getSystemService(InputMethodManager::class.java)
+            runCatching { imm?.hideSoftInputFromWindow(view.windowToken, 0) }
+        }
     }
 
     private fun applyCollapsed(value: Boolean) {
@@ -336,11 +401,14 @@ class FloatingWindowService : Service() {
         }
     }
 
-    private fun defaultWidth(): Int = (screenSize().first * 0.90f).toInt().coerceAtMost(dp(400))
-    private fun defaultHeight(): Int = (screenSize().second * 0.66f).toInt().coerceAtMost(dp(620))
+    private fun defaultWidth(): Int =
+        (screenSize().first * 0.74f).toInt().coerceAtMost(dp(340)).coerceAtLeast(minWidth())
 
-    private fun minWidth(): Int = dp(280)
-    private fun minHeight(): Int = dp(360)
+    private fun defaultHeight(): Int =
+        (screenSize().second * 0.52f).toInt().coerceAtMost(dp(520)).coerceAtLeast(minHeight())
+
+    private fun minWidth(): Int = dp(240)
+    private fun minHeight(): Int = dp(300)
     private fun maxWidth(): Int = (screenSize().first - dp(8)).coerceAtLeast(minWidth())
     private fun maxHeight(): Int = (screenSize().second - dp(80)).coerceAtLeast(minHeight())
     private fun collapsedSize(): Int = dp(74)
@@ -407,6 +475,27 @@ class FloatingWindowService : Service() {
         runCatching {
             ServiceCompat.startForeground(this, NOTIFICATION_ID, notification, type)
         }
+    }
+}
+
+/**
+ * Root of the overlay window. It only exists to notice taps that land on the
+ * app behind the card, which is how the window gives focus back.
+ */
+private class OverlayRoot(context: Context) : FrameLayout(context) {
+
+    var onTouchDownInside: (() -> Unit)? = null
+    var onTouchOutside: (() -> Unit)? = null
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> onTouchDownInside?.invoke()
+            MotionEvent.ACTION_OUTSIDE -> {
+                onTouchOutside?.invoke()
+                return false
+            }
+        }
+        return super.dispatchTouchEvent(ev)
     }
 }
 

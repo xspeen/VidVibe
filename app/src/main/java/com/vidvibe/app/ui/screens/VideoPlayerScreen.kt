@@ -36,7 +36,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.BrightnessHigh
+import androidx.compose.material.icons.outlined.FitScreen
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.FastRewind
 import androidx.compose.material.icons.outlined.Replay
@@ -58,6 +60,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -65,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -78,6 +82,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.vidvibe.app.data.VideoItem
 import kotlinx.coroutines.delay
@@ -121,6 +126,12 @@ fun VideoPlayerScreen(
 
     var ended by remember(video.uri) { mutableStateOf(false) }
     var seekHintSeconds by remember { mutableStateOf<Int?>(null) }
+    // Wide screens start zoomed so the video fills the display instead of
+    // sitting inside black bars. Phones keep the whole frame visible.
+    val configuration = LocalConfiguration.current
+    var fillScreen by rememberSaveable {
+        mutableStateOf(configuration.screenWidthDp >= 600)
+    }
     var seekTick by remember { mutableIntStateOf(0) }
 
     fun showOverlay(isBrightness: Boolean, value: Float) {
@@ -211,9 +222,17 @@ fun VideoPlayerScreen(
                     useController = true
                     setShowBuffering(PlayerView.SHOW_BUFFERING_ALWAYS)
                     setKeepContentOnPlayerReset(true)
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 }
             },
-            update = { it.player = exoPlayer },
+            update = { view ->
+                view.player = exoPlayer
+                view.resizeMode = if (fillScreen) {
+                    AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                } else {
+                    AspectRatioFrameLayout.RESIZE_MODE_FIT
+                }
+            },
             modifier = Modifier.fillMaxSize()
         )
 
@@ -492,6 +511,28 @@ fun VideoPlayerScreen(
                     enabled = hasNext,
                     onClick = { currentOnNext() }
                 )
+                Spacer(Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            Color.Black.copy(alpha = if (fillScreen) 0.55f else 0.35f),
+                            CircleShape
+                        )
+                        .clickable { fillScreen = !fillScreen },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = if (fillScreen) {
+                            Icons.Outlined.FitScreen
+                        } else {
+                            Icons.Outlined.AspectRatio
+                        },
+                        contentDescription = if (fillScreen) "Fit the whole video" else "Fill the screen",
+                        tint = if (fillScreen) Color(0xFF30D158) else Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 Spacer(Modifier.width(6.dp))
                 Box(
                     modifier = Modifier

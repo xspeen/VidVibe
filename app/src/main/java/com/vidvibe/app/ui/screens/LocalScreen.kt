@@ -150,6 +150,7 @@ fun LocalScreen(
     onCreatePlaylist: (String) -> Playlist?,
     onAddVideosToPlaylist: (String, Set<Long>) -> Unit,
     onDeletePlaylist: (String) -> Unit,
+    onTextInputActiveChanged: (Boolean) -> Unit = {},
     showToast: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -175,6 +176,15 @@ fun LocalScreen(
     var addAfterCreate by remember { mutableStateOf(false) }
     var showPlaylistPicker by remember { mutableStateOf(false) }
     var playlistPendingDelete by remember { mutableStateOf<Playlist?>(null) }
+
+    // Lets the floating window know it has to hold focus for the keyboard.
+    LaunchedEffect(searchOpen, showCreatePlaylist) {
+        onTextInputActiveChanged(searchOpen || showCreatePlaylist)
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { onTextInputActiveChanged(false) }
+    }
 
     val activePlaylist = playlists.firstOrNull { it.id == playlistFilterId }
 

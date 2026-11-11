@@ -86,7 +86,8 @@ fun FloatingAppShell(
     onResize: (Float, Float) -> Unit,
     onResizeEnd: () -> Unit,
     onOpenInApp: () -> Unit,
-    onRequestOverlayPermission: () -> Unit
+    onRequestOverlayPermission: () -> Unit,
+    onFocusModeChange: (Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val dispatcher = LocalOnBackPressedDispatcherOwner.current?.onBackPressedDispatcher
@@ -97,18 +98,27 @@ fun FloatingAppShell(
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
     val pasteToken by viewModel.pasteToken.collectAsStateWithLifecycle()
+    val cookiesImported by viewModel.cookiesImported.collectAsStateWithLifecycle()
 
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var selectionActive by remember { mutableStateOf(false) }
     var downloaderFullScreen by remember { mutableStateOf(false) }
     var profileSubPage by remember { mutableStateOf(false) }
     var toast by remember { mutableStateOf<String?>(null) }
+    var localTextInputActive by remember { mutableStateOf(false) }
 
     val navHidden = selectionActive || downloaderFullScreen || profileSubPage
     val navHideFraction = if (selectionActive || profileSubPage) 2f else 1.5f
 
     BackHandler(enabled = selectedTab != 0) {
         selectedTab = 0
+    }
+
+    // The overlay window only borrows focus while a text field is on screen.
+    // Everything else keeps the app behind fully interactive: its back key,
+    // its keyboard and its window focus stay with it.
+    LaunchedEffect(compact, selectedTab, localTextInputActive) {
+        onFocusModeChange(!compact && (selectedTab == 1 || localTextInputActive))
     }
 
     val appBackground = LocalAppBackground.current
@@ -180,6 +190,7 @@ fun FloatingAppShell(
                             onDeletePlaylist = { playlistId ->
                                 viewModel.deletePlaylist(playlistId)
                             },
+                            onTextInputActiveChanged = { localTextInputActive = it },
                             showToast = { toast = it }
                         )
 
@@ -235,6 +246,9 @@ fun FloatingAppShell(
                                 )
                             },
                             onSubPageChanged = { profileSubPage = it },
+                            cookiesImported = cookiesImported,
+                            onImportCookies = null,
+                            onClearCookies = viewModel::clearCookies,
                             showToast = { toast = it }
                         )
                     }
