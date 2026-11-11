@@ -207,12 +207,12 @@ class FloatingWindowService : Service() {
             onTouchDownInside = {
                 // A tap inside means the user is back in the window, so lend it
                 // focus again if a text field needs the keyboard.
-                if (wantsFocus) applyFocusable(true)
+                if (this@FloatingWindowService.wantsFocus) applyFocusable(true)
             }
             onTouchOutside = {
                 // A tap on the app behind hands focus back to it, so its back
                 // key and keyboard work again.
-                if (focusable) applyFocusable(false)
+                if (this@FloatingWindowService.focusable) applyFocusable(false)
             }
         }
 
@@ -255,9 +255,9 @@ class FloatingWindowService : Service() {
                 FrameLayout.LayoutParams.MATCH_PARENT
             )
         )
-        setViewTreeLifecycleOwner(root, owner)
-        setViewTreeSavedStateRegistryOwner(root, owner)
-        setViewTreeViewModelStoreOwner(root, owner)
+        root.setViewTreeLifecycleOwner(owner)
+        root.setViewTreeSavedStateRegistryOwner(owner)
+        root.setViewTreeViewModelStoreOwner(owner)
 
         val layoutParams = WindowManager.LayoutParams(
             if (collapsed) collapsedSize() else expandedWidthPx,
