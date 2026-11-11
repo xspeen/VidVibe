@@ -870,8 +870,6 @@ private fun SiteLoginGroup(
 }
 
 @Composable
-@Composable
-@Composable
 private fun PremiumSlideToUpgrade(onUpgrade: () -> Unit) {
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
