@@ -12,14 +12,19 @@ import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -29,6 +34,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -65,7 +71,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -101,7 +109,6 @@ import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
 import com.vidvibe.app.ui.theme.BackgroundLook
-import com.vidvibe.app.ui.theme.LocalAnimationDuration
 import com.vidvibe.app.ui.theme.LocalAppTextColor
 import com.vidvibe.app.ui.theme.LocalMenuPalette
 import com.vidvibe.app.ui.theme.MenuGlass
@@ -150,6 +157,11 @@ class NotchOverlayService : Service() {
     private var lifecycleOwner: OverlayLifecycleOwner? = null
     private var downloadJob: Job? = null
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var pendingWidthPx = 0
+    private var pendingHeightPx = 0
+    private val applyWindowSize = Runnable { commitWindowSize() }
+
     override fun onCreate() {
         super.onCreate()
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -176,6 +188,7 @@ class NotchOverlayService : Service() {
 
     override fun onDestroy() {
         downloadJob?.cancel()
+        mainHandler.removeCallbacksAndMessages(null)
         overlayView?.let { view ->
             runCatching { windowManager.removeView(view) }
         }
@@ -262,6 +275,7 @@ class NotchOverlayService : Service() {
                 OverlayTheme(current) {
                     NotchOverlay(
                         download = download,
+                        onContentSizeChanged = { width, height -> syncWindowSize(width, height) },
                         onExpandedChanged = { expanded -> setPanelFocus(expanded) },
                         onPasteClipboard = { readClipboard() },
                         onDownload = { url, quality -> startNotchDownload(url, quality) },
@@ -285,6 +299,17 @@ class NotchOverlayService : Service() {
             // hardware notch instead of the usable content area.
             x = anchor.centerOffsetPx
             y = anchor.topPx
+
+            // Without this the window is still kept clear of the camera cutout,
+            // which pushes the notch UI back down below it.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                layoutInDisplayCutoutMode =
+                    WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Do not inset the window for the status bar / navigation bar.
+                fitInsetsTypes = 0
+            }
         }
 
         overlayView = view
@@ -313,13 +338,53 @@ class NotchOverlayService : Service() {
             WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
         }
 
-        runCatching { windowManager.updateViewLayout(view, params) }
-
         if (focusable) {
+            runCatching { windowManager.updateViewLayout(view, params) }
             runCatching { view.requestFocus() }
+            relayoutDuringMorph()
         } else {
+            // Drop the IME before the window loses focus, otherwise the
+            // keyboard can stay up over the collapsed pill.
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
             runCatching { imm?.hideSoftInputFromWindow(view.windowToken, 0) }
+            runCatching { view.clearFocus() }
+            runCatching { windowManager.updateViewLayout(view, params) }
+            relayoutDuringMorph()
+        }
+    }
+
+    /**
+     * A WRAP_CONTENT overlay window re-measures through ViewRootImpl only, and
+     * the input region of a LAYOUT_NO_LIMITS window is recomputed on a real
+     * WindowManager relayout. Without that, the panel is drawn at its new size
+     * while the touchable region is still the collapsed pill — taps inside the
+     * panel then land on whatever is behind it. Forcing a relayout keeps the
+     * hit area in sync with the visible glass.
+     */
+    private fun syncWindowSize(widthPx: Int, heightPx: Int) {
+        if (widthPx <= 0 || heightPx <= 0) return
+        if (widthPx == pendingWidthPx && heightPx == pendingHeightPx) return
+        pendingWidthPx = widthPx
+        pendingHeightPx = heightPx
+        scheduleRelayout()
+    }
+
+    private fun scheduleRelayout() {
+        mainHandler.removeCallbacks(applyWindowSize)
+        mainHandler.post(applyWindowSize)
+    }
+
+    private fun commitWindowSize() {
+        val view = overlayView ?: return
+        val params = overlayParams ?: return
+        runCatching { windowManager.updateViewLayout(view, params) }
+    }
+
+    /** Re-applies the layout a few times while the panel morphs open. */
+    private fun relayoutDuringMorph() {
+        val offsets = longArrayOf(0L, 48L, 120L, 240L)
+        offsets.forEach { delayMs ->
+            mainHandler.postDelayed({ commitWindowSize() }, delayMs)
         }
     }
 
@@ -571,6 +636,7 @@ private fun OverlayTheme(settings: AppSettings, content: @Composable () -> Unit)
 @Composable
 private fun NotchOverlay(
     download: NotchDownloadState,
+    onContentSizeChanged: (Int, Int) -> Unit,
     onExpandedChanged: (Boolean) -> Unit,
     onPasteClipboard: () -> String,
     onDownload: (String, Int) -> Unit,
@@ -580,21 +646,64 @@ private fun NotchOverlay(
     var expanded by remember { mutableStateOf(false) }
     var link by remember { mutableStateOf("") }
     var quality by remember { mutableIntStateOf(720) }
+    var pasteHint by remember { mutableStateOf(false) }
 
-    val duration = LocalAnimationDuration.current.coerceIn(120, 900)
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val panelWidth = (screenWidth - 24.dp).coerceAtMost(400.dp)
+
+    // Dynamic Island feel: the pill itself grows into the panel instead of a
+    // separate card sliding out underneath it. Snappy spring, slight overshoot.
+    val morph = spring<Dp>(
+        dampingRatio = 0.86f,
+        stiffness = Spring.StiffnessMediumLow * 4f
+    )
+    val pillWidth by animateDpAsState(
+        targetValue = if (expanded) panelWidth else 172.dp,
+        animationSpec = morph,
+        label = "notch-width"
+    )
+    val pillHeight by animateDpAsState(
+        targetValue = if (expanded) 44.dp else 40.dp,
+        animationSpec = morph,
+        label = "notch-height"
+    )
+    val pillBottomRadius by animateDpAsState(
+        targetValue = if (expanded) 10.dp else 26.dp,
+        animationSpec = morph,
+        label = "notch-radius"
+    )
+    val gap by animateDpAsState(
+        targetValue = if (expanded) 0.dp else 8.dp,
+        animationSpec = morph,
+        label = "notch-gap"
+    )
 
     LaunchedEffect(expanded) {
         onExpandedChanged(expanded)
         if (expanded) {
             // The window only gains focus once it becomes focusable, so give it a
-            // moment before touching the clipboard.
-            delay(160)
+            // moment before touching the clipboard. Retry once if the system
+            // was not ready yet on the first attempt.
+            delay(90)
             if (link.isBlank()) {
                 val pasted = onPasteClipboard()
-                if (pasted.isNotBlank()) link = pasted
+                if (pasted.isNotBlank()) {
+                    link = pasted
+                } else {
+                    delay(220)
+                    if (link.isBlank()) {
+                        val retry = onPasteClipboard()
+                        if (retry.isNotBlank()) link = retry
+                    }
+                }
             }
+        }
+    }
+
+    LaunchedEffect(pasteHint) {
+        if (pasteHint) {
+            delay(2600)
+            pasteHint = false
         }
     }
 
@@ -606,21 +715,33 @@ private fun NotchOverlay(
         }
     }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.onSizeChanged { size ->
+            onContentSizeChanged(size.width, size.height)
+        },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         NotchPill(
             expanded = expanded,
+            width = pillWidth,
+            height = pillHeight,
+            bottomRadius = pillBottomRadius,
             download = download,
             onToggle = { expanded = !expanded }
         )
         AnimatedVisibility(
             visible = expanded,
-            enter = fadeIn(tween(duration)) +
-                expandVertically(tween(duration), expandFrom = Alignment.Top),
-            exit = fadeOut(tween(duration)) +
-                shrinkVertically(tween(duration), shrinkTowards = Alignment.Top)
+            enter = fadeIn(tween(110)) +
+                expandVertically(
+                    animationSpec = spring(dampingRatio = 0.9f, stiffness = 1400f),
+                    expandFrom = Alignment.Top
+                ),
+            exit = fadeOut(tween(80)) +
+                shrinkVertically(tween(130), shrinkTowards = Alignment.Top)
         ) {
             NotchPanel(
                 width = panelWidth,
+                gap = gap,
                 link = link,
                 onLinkChange = { link = it },
                 quality = quality,
@@ -628,11 +749,20 @@ private fun NotchOverlay(
                 download = download,
                 onPaste = {
                     val pasted = onPasteClipboard()
-                    if (pasted.isNotBlank()) link = pasted
+                    if (pasted.isNotBlank()) {
+                        link = pasted
+                        pasteHint = false
+                    } else {
+                        // Android 10+ hides the clipboard from windows that do
+                        // not hold input focus yet; the field's own long-press
+                        // paste always works, so point at it instead of doing
+                        // nothing at all.
+                        pasteHint = true
+                    }
                 },
+                pasteHint = pasteHint,
                 onDownload = { onDownload(link, quality) },
-                onCancel = onCancel,
-                onCollapse = { expanded = false }
+                onCancel = onCancel
             )
         }
     }
@@ -641,6 +771,9 @@ private fun NotchOverlay(
 @Composable
 private fun NotchPill(
     expanded: Boolean,
+    width: Dp,
+    height: Dp,
+    bottomRadius: Dp,
     download: NotchDownloadState,
     onToggle: () -> Unit
 ) {
@@ -650,8 +783,15 @@ private fun NotchPill(
     val shape = RoundedCornerShape(
         topStart = 18.dp,
         topEnd = 18.dp,
-        bottomStart = 26.dp,
-        bottomEnd = 26.dp
+        bottomStart = bottomRadius,
+        bottomEnd = bottomRadius
+    )
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed) 0.955f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 2400f),
+        label = "notch-press"
     )
 
     val dotColor = when (download) {
@@ -669,8 +809,12 @@ private fun NotchPill(
 
     Row(
         modifier = Modifier
-            .width(172.dp)
-            .height(40.dp)
+            .width(width)
+            .height(height)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(shape)
             .background(
                 Brush.verticalGradient(
@@ -682,10 +826,11 @@ private fun NotchPill(
             )
             .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = interaction,
                 indication = null
             ) {
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                // Light tick only — the old LongPress buzz made taps feel heavy.
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                 onToggle()
             }
             .padding(horizontal = 16.dp),
@@ -719,25 +864,45 @@ private fun NotchPill(
 @Composable
 private fun NotchPanel(
     width: Dp,
+    gap: Dp,
     link: String,
     onLinkChange: (String) -> Unit,
     quality: Int,
     onQualityChange: (Int) -> Unit,
     download: NotchDownloadState,
+    pasteHint: Boolean,
     onPaste: () -> Unit,
     onDownload: () -> Unit,
-    onCancel: () -> Unit,
-    onCollapse: () -> Unit
+    onCancel: () -> Unit
 ) {
     val textColor = LocalAppTextColor.current
     val palette = LocalMenuPalette.current
-    val shape = RoundedCornerShape(26.dp)
+    // Top corners stay square so the panel reads as one piece with the pill,
+    // the way the hardware Dynamic Island unfolds.
+    val shape = RoundedCornerShape(
+        topStart = 10.dp,
+        topEnd = 10.dp,
+        bottomStart = 26.dp,
+        bottomEnd = 26.dp
+    )
     val running = download is NotchDownloadState.Running
+
+    // Unfold from the pill's width so the window never becomes wider than the
+    // visible glass — a wide, half-empty window would swallow taps in its dead
+    // space while the panel animates in.
+    val unfold = spring<Dp>(dampingRatio = 0.86f, stiffness = 1600f)
+    var unfolded by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { unfolded = true }
+    val animatedWidth by animateDpAsState(
+        targetValue = if (unfolded) width else 172.dp,
+        animationSpec = unfold,
+        label = "notch-panel-width"
+    )
 
     Column(
         modifier = Modifier
-            .padding(top = 8.dp)
-            .width(width)
+            .padding(top = gap)
+            .width(animatedWidth)
             .clip(shape)
             .background(
                 Brush.verticalGradient(
@@ -750,34 +915,6 @@ private fun NotchPanel(
             .border(1.dp, Color.White.copy(alpha = 0.10f), shape)
             .padding(14.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "DOWNLOAD",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.1.sp,
-                color = textColor.copy(alpha = 0.55f),
-                modifier = Modifier.weight(1f)
-            )
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.06f))
-                    .clickable(onClick = onCollapse),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowUp,
-                    contentDescription = "Collapse notch",
-                    tint = textColor.copy(alpha = 0.70f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(10.dp))
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -811,9 +948,11 @@ private fun NotchPanel(
                     Box {
                         if (link.isEmpty()) {
                             Text(
-                                text = "Paste a video link",
+                                text = if (pasteHint) "Long-press to paste"
+                                else "Paste a video link",
                                 fontSize = 13.sp,
-                                color = textColor.copy(alpha = 0.40f)
+                                color = if (pasteHint) Color(0xFF9CC7FF)
+                                else textColor.copy(alpha = 0.40f)
                             )
                         }
                         inner()
@@ -987,10 +1126,22 @@ private fun DownloadButton(
     enabled: Boolean,
     onClick: () -> Unit
 ) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed && enabled) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = 2600f),
+        label = "download-press"
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(46.dp)
+            .graphicsLayer {
+                scaleX = pressScale
+                scaleY = pressScale
+            }
             .clip(RoundedCornerShape(14.dp))
             .background(
                 if (enabled) {
@@ -1003,7 +1154,12 @@ private fun DownloadButton(
                     )
                 }
             )
-            .clickable(enabled = enabled, onClick = onClick),
+            .clickable(
+                enabled = enabled,
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick
+            ),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
