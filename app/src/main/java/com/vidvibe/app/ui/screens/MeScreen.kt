@@ -779,14 +779,14 @@ private fun FloatingNotchGroup(
         ) {
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "Top-screen navigation",
+                    text = "Download from the notch",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = currentText
                 )
                 Spacer(Modifier.height(3.dp))
                 Text(
-                    text = "A floating glass notch with paste-to-download and quick tab jumps.",
+                    text = "A glass notch under your camera. Paste a link, watch the green bar fill, and it closes itself.",
                     fontSize = 11.sp,
                     color = ProfileText2,
                     lineHeight = 15.sp
@@ -880,7 +880,7 @@ private fun NotchMiniPreview(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(112.dp)
+            .height(150.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(
                 Brush.verticalGradient(
@@ -915,13 +915,13 @@ private fun NotchMiniPreview(
                         .clip(CircleShape)
                         .background(ProfileGreen)
                 )
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier = Modifier
-                        .size(9.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFF050507))
-                        .border(1.dp, Color.White.copy(alpha = 0.20f), CircleShape)
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = "Download",
+                    fontSize = 7.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = fontFamily,
+                    color = textColor
                 )
                 Spacer(Modifier.weight(1f))
                 Icon(
@@ -932,7 +932,7 @@ private fun NotchMiniPreview(
                 )
             }
 
-            Spacer(Modifier.height(7.dp))
+            Spacer(Modifier.height(6.dp))
 
             Column(
                 modifier = Modifier
@@ -951,49 +951,110 @@ private fun NotchMiniPreview(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        text = "Paste link to download",
+                        text = "Paste a video link",
                         fontSize = 8.sp,
-                        fontWeight = FontWeight.SemiBold,
                         fontFamily = fontFamily,
-                        color = textColor
+                        color = textColor.copy(alpha = 0.45f),
+                        modifier = Modifier.weight(1f)
                     )
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(Color(0x334E9BFF))
+                            .padding(horizontal = 5.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Paste",
+                            fontSize = 6.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = fontFamily,
+                            color = Color(0xFF9CC7FF)
+                        )
+                    }
                 }
-                Spacer(Modifier.height(7.dp))
+
+                Spacer(Modifier.height(6.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    PreviewNavItem(Icons.Outlined.VideoLibrary, "Local", textColor, fontFamily)
-                    PreviewNavItem(Icons.Outlined.Download, "Download", textColor, fontFamily)
-                    PreviewNavItem(Icons.Outlined.DeleteOutline, "Trash", textColor, fontFamily)
-                    PreviewNavItem(Icons.Outlined.PersonOutline, "Profile", textColor, fontFamily)
+                    listOf("4K", "1080p", "720p", "480p").forEachIndexed { index, label ->
+                        val active = index == 2
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(14.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    if (active) Color(0x3330D158)
+                                    else Color.White.copy(alpha = 0.05f)
+                                )
+                                .border(
+                                    0.5.dp,
+                                    if (active) Color(0x6630D158)
+                                    else Color.White.copy(alpha = 0.07f),
+                                    RoundedCornerShape(4.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 5.sp,
+                                fontFamily = fontFamily,
+                                color = if (active) Color(0xFF30D158)
+                                else textColor.copy(alpha = 0.65f)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.10f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.65f)
+                            .height(5.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF1FA84A), Color(0xFF30D158))
+                                )
+                            )
+                    )
+                }
+
+                Spacer(Modifier.height(6.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(18.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(Color(0xFF1FA84A), Color(0xFF30D158))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Download",
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = fontFamily,
+                        color = Color(0xFF04140A)
+                    )
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun PreviewNavItem(
-    icon: ImageVector,
-    label: String,
-    textColor: Color,
-    fontFamily: FontFamily
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = textColor.copy(alpha = 0.85f),
-            modifier = Modifier.size(11.dp)
-        )
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = label,
-            fontSize = 6.sp,
-            fontFamily = fontFamily,
-            color = textColor.copy(alpha = 0.70f)
-        )
     }
 }
 

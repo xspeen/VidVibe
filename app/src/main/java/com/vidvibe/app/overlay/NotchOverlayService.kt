@@ -5,16 +5,21 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
+import android.net.Uri
 import android.os.Build
 import android.os.IBinder
 import android.provider.Settings
 import android.view.Gravity
+import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -28,6 +33,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -36,37 +42,37 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.ChevronRight
-import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.Link
-import androidx.compose.material.icons.outlined.PersonOutline
-import androidx.compose.material.icons.outlined.PowerSettingsNew
-import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -89,6 +95,8 @@ import com.vidvibe.app.MainActivity
 import com.vidvibe.app.R
 import com.vidvibe.app.data.AppSettings
 import com.vidvibe.app.data.SettingsStore
+import com.vidvibe.app.data.VideoRepository
+import com.vidvibe.app.download.YtDlpManager
 import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
@@ -101,29 +109,45 @@ import com.vidvibe.app.ui.theme.MenuPalette
 import com.vidvibe.app.ui.theme.TextTone
 import com.vidvibe.app.ui.theme.VidVibeTheme
 import com.vidvibe.app.ui.theme.backgroundFor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
+sealed interface NotchDownloadState {
+    data object Idle : NotchDownloadState
+    data class Running(val progress: Int, val status: String) : NotchDownloadState
+    data class Complete(val fileName: String) : NotchDownloadState
+    data class Error(val message: String) : NotchDownloadState
+}
+
 /**
- * Floating "notch" navigation overlay.
+ * Floating "notch" download overlay.
  *
- * Runs as a special-use foreground service and draws a compact glass pill at the top
- * of the screen. Tapping the pill expands a panel with a paste-to-download shortcut
- * and quick navigation into every VidVibe tab.
+ * Runs as a special-use foreground service and draws a compact glass pill that sits just
+ * below the device's own camera cutout / status bar. Tapping the pill slides open an
+ * in-notch download panel: paste a link, pick a quality, and the green progress bar fills
+ * as the download runs. When it finishes the notch collapses itself.
  */
 class NotchOverlayService : Service() {
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val settingsStore by lazy { SettingsStore(this) }
     private val settings = MutableStateFlow(AppSettings())
+    private val downloadState = MutableStateFlow<NotchDownloadState>(NotchDownloadState.Idle)
+    private val repository by lazy { VideoRepository(this) }
+    private val ytDlpManager by lazy { YtDlpManager(this) }
 
     private lateinit var windowManager: WindowManager
     private var overlayView: ComposeView? = null
+    private var overlayParams: WindowManager.LayoutParams? = null
     private var lifecycleOwner: OverlayLifecycleOwner? = null
+    private var downloadJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -150,10 +174,12 @@ class NotchOverlayService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        downloadJob?.cancel()
         overlayView?.let { view ->
             runCatching { windowManager.removeView(view) }
         }
         overlayView = null
+        overlayParams = null
         lifecycleOwner?.onDestroy()
         lifecycleOwner = null
         serviceScope.cancel()
@@ -168,7 +194,7 @@ class NotchOverlayService : Service() {
             "Floating notch",
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Keeps the floating notch navigation running."
+            description = "Keeps the floating notch download panel running."
             setShowBadge(false)
         }
         manager.createNotificationChannel(channel)
@@ -191,7 +217,7 @@ class NotchOverlayService : Service() {
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notch)
             .setContentTitle("Floating notch is on")
-            .setContentText("Quick paste and navigation are ready")
+            .setContentText("Paste a link in the notch to download")
             .setContentIntent(openApp)
             .setOngoing(true)
             .setSilent(true)
@@ -217,6 +243,8 @@ class NotchOverlayService : Service() {
         lifecycleOwner = owner
 
         val view = ComposeView(this).apply {
+            isFocusable = true
+            isFocusableInTouchMode = true
             setViewCompositionStrategy(
                 ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed
             )
@@ -225,11 +253,15 @@ class NotchOverlayService : Service() {
             setViewTreeViewModelStoreOwner(owner)
             setContent {
                 val current by settings.collectAsState()
+                val download by downloadState.collectAsState()
                 OverlayTheme(current) {
                     NotchOverlay(
-                        onOpenTab = { tab -> launchApp(tab = tab) },
-                        onPaste = { launchApp(tab = 1, paste = true) },
-                        onDisable = { disableNotch() }
+                        download = download,
+                        onExpandedChanged = { expanded -> setPanelFocus(expanded) },
+                        onPasteClipboard = { readClipboard() },
+                        onDownload = { url, quality -> startNotchDownload(url, quality) },
+                        onCancel = { cancelNotchDownload() },
+                        onReset = { resetNotchDownload() }
                     )
                 }
             }
@@ -240,16 +272,48 @@ class NotchOverlayService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayWindowType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             x = 0
-            y = statusBarHeight() + dp(6)
+            // Sit just under the phone's own camera cutout / status bar so the
+            // selfie camera stays visible and the pill lines up with the device.
+            y = topAnchorPx() + dp(4)
         }
 
         overlayView = view
+        overlayParams = params
         return runCatching { windowManager.addView(view, params) }.isSuccess
+    }
+
+    private fun setPanelFocus(focusable: Boolean) {
+        val view = overlayView ?: return
+        val params = overlayParams ?: return
+
+        params.flags = if (focusable) {
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        } else {
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+        }
+        params.softInputMode = if (focusable) {
+            WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
+        } else {
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
+        }
+
+        runCatching { windowManager.updateViewLayout(view, params) }
+
+        if (focusable) {
+            runCatching { view.requestFocus() }
+        } else {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            runCatching { imm?.hideSoftInputFromWindow(view.windowToken, 0) }
+        }
     }
 
     @Suppress("DEPRECATION")
@@ -260,24 +324,103 @@ class NotchOverlayService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
-    private fun launchApp(tab: Int? = null, paste: Boolean = false) {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-            )
-            if (tab != null) putExtra(EXTRA_OPEN_TAB, tab)
-            if (paste) putExtra(EXTRA_PASTE_LINK, true)
-        }
-        runCatching { startActivity(intent) }
+    private fun readClipboard(): String {
+        val manager = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        return manager
+            ?.primaryClip
+            ?.takeIf { it.itemCount > 0 }
+            ?.getItemAt(0)
+            ?.coerceToText(this)
+            ?.toString()
+            ?.trim()
+            .orEmpty()
     }
 
-    private fun disableNotch() {
-        serviceScope.launch {
-            settingsStore.setNotchEnabled(false)
-            stopSelf()
+    private fun startNotchDownload(rawUrl: String, quality: Int) {
+        if (downloadJob?.isActive == true) return
+
+        val cleanUrl = rawUrl.trim()
+        val parsed = runCatching { Uri.parse(cleanUrl) }.getOrNull()
+        if (
+            parsed == null ||
+            parsed.scheme !in setOf("http", "https") ||
+            parsed.host.isNullOrBlank()
+        ) {
+            downloadState.value =
+                NotchDownloadState.Error("Paste a valid http or https video link.")
+            return
         }
+
+        if (settings.value.wifiOnly && !isOnWifi()) {
+            downloadState.value = NotchDownloadState.Error(
+                "Wi-Fi only is on. Connect to Wi-Fi or turn it off in settings."
+            )
+            return
+        }
+
+        downloadJob = serviceScope.launch {
+            downloadState.value = NotchDownloadState.Running(0, "Preparing download...")
+            try {
+                val file = ytDlpManager.downloadVideo(
+                    url = cleanUrl,
+                    qualityHeight = quality
+                ) { percent, status ->
+                    downloadState.value = NotchDownloadState.Running(percent, status)
+                }
+                if (!isActive) return@launch
+
+                val galleryName = if (file.name.startsWith("VidVibe_")) {
+                    file.name
+                } else {
+                    "VidVibe_${file.name}"
+                }
+                val mimeType = repository.mimeTypeFor(galleryName)
+                repository.saveToGallery(file, galleryName, mimeType)
+                runCatching { file.delete() }
+                if (!isActive) return@launch
+
+                downloadState.value = NotchDownloadState.Complete(galleryName)
+            } catch (error: Throwable) {
+                if (error is CancellationException) return@launch
+                val message = error.message
+                    ?.substringBefore('\n')
+                    ?.takeIf { it.isNotBlank() }
+                    ?: "The download could not be completed."
+                downloadState.value = NotchDownloadState.Error(message)
+            }
+        }
+    }
+
+    private fun cancelNotchDownload() {
+        downloadJob?.cancel()
+        downloadJob = null
+        downloadState.value = NotchDownloadState.Idle
+    }
+
+    private fun resetNotchDownload() {
+        if (downloadState.value !is NotchDownloadState.Running) {
+            downloadState.value = NotchDownloadState.Idle
+        }
+    }
+
+    private fun isOnWifi(): Boolean {
+        val connectivity = getSystemService(Context.CONNECTIVITY_SERVICE)
+            as? android.net.ConnectivityManager ?: return true
+        val network = connectivity.activeNetwork ?: return false
+        val capabilities = connectivity.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) ||
+            capabilities.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET)
+    }
+
+    private fun topAnchorPx(): Int {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val metrics = windowManager.currentWindowMetrics
+            val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
+                WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout()
+            )
+            if (insets.top > 0) return insets.top
+        }
+        return statusBarHeight()
     }
 
     private fun statusBarHeight(): Int {
@@ -364,18 +507,46 @@ private fun OverlayTheme(settings: AppSettings, content: @Composable () -> Unit)
 
 @Composable
 private fun NotchOverlay(
-    onOpenTab: (Int) -> Unit,
-    onPaste: () -> Unit,
-    onDisable: () -> Unit
+    download: NotchDownloadState,
+    onExpandedChanged: (Boolean) -> Unit,
+    onPasteClipboard: () -> String,
+    onDownload: (String, Int) -> Unit,
+    onCancel: () -> Unit,
+    onReset: () -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var link by remember { mutableStateOf("") }
+    var quality by remember { mutableIntStateOf(720) }
+
     val duration = LocalAnimationDuration.current.coerceIn(120, 900)
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
-    val panelWidth = (screenWidth - 28.dp).coerceAtMost(384.dp)
+    val panelWidth = (screenWidth - 24.dp).coerceAtMost(400.dp)
+
+    LaunchedEffect(expanded) {
+        onExpandedChanged(expanded)
+        if (expanded) {
+            // The window only gains focus once it becomes focusable, so give it a
+            // moment before touching the clipboard.
+            delay(160)
+            if (link.isBlank()) {
+                val pasted = onPasteClipboard()
+                if (pasted.isNotBlank()) link = pasted
+            }
+        }
+    }
+
+    LaunchedEffect(download) {
+        if (download is NotchDownloadState.Complete) {
+            delay(1400)
+            expanded = false
+            onReset()
+        }
+    }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         NotchPill(
             expanded = expanded,
+            download = download,
             onToggle = { expanded = !expanded }
         )
         AnimatedVisibility(
@@ -387,18 +558,18 @@ private fun NotchOverlay(
         ) {
             NotchPanel(
                 width = panelWidth,
-                onOpenTab = { tab ->
-                    expanded = false
-                    onOpenTab(tab)
-                },
+                link = link,
+                onLinkChange = { link = it },
+                quality = quality,
+                onQualityChange = { quality = it },
+                download = download,
                 onPaste = {
-                    expanded = false
-                    onPaste()
+                    val pasted = onPasteClipboard()
+                    if (pasted.isNotBlank()) link = pasted
                 },
-                onDisable = {
-                    expanded = false
-                    onDisable()
-                }
+                onDownload = { onDownload(link, quality) },
+                onCancel = onCancel,
+                onCollapse = { expanded = false }
             )
         }
     }
@@ -407,22 +578,36 @@ private fun NotchOverlay(
 @Composable
 private fun NotchPill(
     expanded: Boolean,
+    download: NotchDownloadState,
     onToggle: () -> Unit
 ) {
     val textColor = LocalAppTextColor.current
     val palette = LocalMenuPalette.current
     val haptics = LocalHapticFeedback.current
     val shape = RoundedCornerShape(
-        topStart = 16.dp,
-        topEnd = 16.dp,
-        bottomStart = 24.dp,
-        bottomEnd = 24.dp
+        topStart = 18.dp,
+        topEnd = 18.dp,
+        bottomStart = 26.dp,
+        bottomEnd = 26.dp
     )
+
+    val dotColor = when (download) {
+        is NotchDownloadState.Running -> Color(0xFF4E9BFF)
+        is NotchDownloadState.Complete -> Color(0xFF30D158)
+        is NotchDownloadState.Error -> Color(0xFFFF6B6B)
+        NotchDownloadState.Idle -> Color(0xFF30D158)
+    }
+    val label = when (download) {
+        is NotchDownloadState.Running -> "${download.progress}%"
+        is NotchDownloadState.Complete -> "Saved"
+        is NotchDownloadState.Error -> "Retry"
+        NotchDownloadState.Idle -> "Download"
+    }
 
     Row(
         modifier = Modifier
-            .width(168.dp)
-            .height(38.dp)
+            .width(172.dp)
+            .height(40.dp)
             .clip(shape)
             .background(
                 Brush.verticalGradient(
@@ -445,44 +630,25 @@ private fun NotchPill(
     ) {
         Box(
             modifier = Modifier
-                .size(6.dp)
+                .size(7.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF30D158))
+                .background(dotColor)
+        )
+        Spacer(Modifier.width(9.dp))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = textColor.copy(alpha = 0.85f)
         )
         Spacer(Modifier.weight(1f))
-        Box(
-            modifier = Modifier
-                .size(15.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF050507))
-                .border(1.dp, Color.White.copy(alpha = 0.18f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(6.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF1B2A44))
-            )
-            Box(
-                modifier = Modifier
-                    .size(2.dp)
-                    .clip(CircleShape)
-                    .background(Color(0x665AA8FF))
-                    .graphicsLayer {
-                        translationX = -1.5f
-                        translationY = -1.5f
-                    }
-            )
-        }
-        Spacer(Modifier.weight(1f))
         Icon(
-            imageVector = Icons.Outlined.KeyboardArrowDown,
-            contentDescription = if (expanded) "Collapse notch" else "Expand notch",
+            imageVector = if (expanded) Icons.Outlined.KeyboardArrowUp
+            else Icons.Outlined.KeyboardArrowDown,
+            contentDescription = if (expanded) "Collapse download notch"
+            else "Open download notch",
             tint = textColor.copy(alpha = 0.75f),
-            modifier = Modifier
-                .size(15.dp)
-                .rotate(if (expanded) 180f else 0f)
+            modifier = Modifier.size(16.dp)
         )
     }
 }
@@ -490,13 +656,20 @@ private fun NotchPill(
 @Composable
 private fun NotchPanel(
     width: Dp,
-    onOpenTab: (Int) -> Unit,
+    link: String,
+    onLinkChange: (String) -> Unit,
+    quality: Int,
+    onQualityChange: (Int) -> Unit,
+    download: NotchDownloadState,
     onPaste: () -> Unit,
-    onDisable: () -> Unit
+    onDownload: () -> Unit,
+    onCancel: () -> Unit,
+    onCollapse: () -> Unit
 ) {
     val textColor = LocalAppTextColor.current
     val palette = LocalMenuPalette.current
     val shape = RoundedCornerShape(26.dp)
+    val running = download is NotchDownloadState.Running
 
     Column(
         modifier = Modifier
@@ -516,7 +689,7 @@ private fun NotchPanel(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "NOTCH NAVIGATION",
+                text = "DOWNLOAD",
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = 1.1.sp,
@@ -525,15 +698,15 @@ private fun NotchPanel(
             )
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(28.dp)
                     .clip(CircleShape)
                     .background(Color.White.copy(alpha = 0.06f))
-                    .clickable(onClick = onDisable),
+                    .clickable(onClick = onCollapse),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.PowerSettingsNew,
-                    contentDescription = "Turn off floating notch",
+                    imageVector = Icons.Outlined.KeyboardArrowUp,
+                    contentDescription = "Collapse notch",
                     tint = textColor.copy(alpha = 0.70f),
                     modifier = Modifier.size(16.dp)
                 )
@@ -545,116 +718,244 @@ private fun NotchPanel(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
-                .clip(RoundedCornerShape(18.dp))
+                .height(46.dp)
+                .clip(RoundedCornerShape(14.dp))
                 .background(Color.White.copy(alpha = 0.07f))
-                .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(18.dp))
-                .clickable(onClick = onPaste)
+                .border(1.dp, Color.White.copy(alpha = 0.09f), RoundedCornerShape(14.dp))
                 .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Icon(
+                imageVector = Icons.Outlined.Link,
+                contentDescription = null,
+                tint = Color(0xFF4E9BFF),
+                modifier = Modifier.size(15.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            BasicTextField(
+                value = link,
+                onValueChange = onLinkChange,
+                singleLine = true,
+                enabled = !running,
+                textStyle = TextStyle(
+                    color = textColor,
+                    fontSize = 13.sp
+                ),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                cursorBrush = SolidColor(Color(0xFF30D158)),
+                modifier = Modifier.weight(1f),
+                decorationBox = { inner ->
+                    Box {
+                        if (link.isEmpty()) {
+                            Text(
+                                text = "Paste a video link",
+                                fontSize = 13.sp,
+                                color = textColor.copy(alpha = 0.40f)
+                            )
+                        }
+                        inner()
+                    }
+                }
+            )
+            Spacer(Modifier.width(8.dp))
             Box(
                 modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .background(Color(0x334E9BFF)),
-                contentAlignment = Alignment.Center
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(Color(0x334E9BFF))
+                    .clickable(enabled = !running, onClick = onPaste)
+                    .padding(horizontal = 8.dp, vertical = 5.dp)
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.Link,
-                    contentDescription = null,
-                    tint = Color(0xFF4E9BFF),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
                 Text(
-                    text = "Paste link to download",
-                    fontSize = 14.sp,
+                    text = "Paste",
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = textColor
-                )
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = "Opens Downloader with your clipboard",
-                    fontSize = 10.sp,
-                    color = textColor.copy(alpha = 0.55f)
+                    color = Color(0xFF9CC7FF)
                 )
             }
-            Icon(
-                imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = null,
-                tint = textColor.copy(alpha = 0.45f),
-                modifier = Modifier.size(18.dp)
-            )
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            QualityChip("4K", 2160, quality, onQualityChange, running)
+            QualityChip("1080p", 1080, quality, onQualityChange, running)
+            QualityChip("720p", 720, quality, onQualityChange, running)
+            QualityChip("480p", 480, quality, onQualityChange, running)
+            QualityChip("360p", 360, quality, onQualityChange, running)
         }
 
         Spacer(Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            NotchNavItem(Icons.Outlined.VideoLibrary, "Local") { onOpenTab(0) }
-            NotchNavItem(Icons.Outlined.Download, "Downloader") { onOpenTab(1) }
-            NotchNavItem(Icons.Outlined.DeleteOutline, "Trash") { onOpenTab(2) }
-            NotchNavItem(Icons.Outlined.PersonOutline, "Profile") { onOpenTab(3) }
+        when (download) {
+            is NotchDownloadState.Running -> {
+                val fraction by animateFloatAsState(
+                    targetValue = (download.progress / 100f).coerceIn(0f, 1f),
+                    animationSpec = tween(300),
+                    label = "notch-progress"
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "${download.progress}%",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF30D158)
+                    )
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        text = "Cancel",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textColor.copy(alpha = 0.65f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(onClick = onCancel)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.10f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction)
+                            .height(8.dp)
+                            .clip(CircleShape)
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color(0xFF1FA84A), Color(0xFF30D158))
+                                )
+                            )
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = download.status,
+                    fontSize = 10.sp,
+                    color = textColor.copy(alpha = 0.55f),
+                    maxLines = 1
+                )
+            }
+
+            is NotchDownloadState.Complete -> {
+                Text(
+                    text = "Saved to gallery",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color(0xFF30D158),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = download.fileName,
+                    fontSize = 10.sp,
+                    color = textColor.copy(alpha = 0.55f),
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            else -> {
+                val error = download as? NotchDownloadState.Error
+                if (error != null) {
+                    Text(
+                        text = error.message,
+                        fontSize = 11.sp,
+                        color = Color(0xFFFF8080),
+                        lineHeight = 15.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
+                DownloadButton(
+                    enabled = link.isNotBlank(),
+                    onClick = onDownload
+                )
+            }
         }
+    }
+}
 
-        Spacer(Modifier.height(6.dp))
-
+@Composable
+private fun RowScope.QualityChip(
+    label: String,
+    value: Int,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    disabled: Boolean
+) {
+    val textColor = LocalAppTextColor.current
+    val active = value == selected
+    Box(
+        modifier = Modifier
+            .weight(1f)
+            .height(30.dp)
+            .clip(RoundedCornerShape(9.dp))
+            .background(
+                if (active) Color(0x3330D158) else Color.White.copy(alpha = 0.05f)
+            )
+            .border(
+                1.dp,
+                if (active) Color(0x6630D158) else Color.White.copy(alpha = 0.07f),
+                RoundedCornerShape(9.dp)
+            )
+            .clickable(enabled = !disabled) { onSelect(value) },
+        contentAlignment = Alignment.Center
+    ) {
         Text(
-            text = "Tap the notch to collapse",
+            text = label,
             fontSize = 10.sp,
-            color = textColor.copy(alpha = 0.38f),
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
+            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+            color = if (active) Color(0xFF30D158) else textColor.copy(alpha = 0.70f)
         )
     }
 }
 
 @Composable
-private fun NotchNavItem(
-    icon: ImageVector,
-    label: String,
+private fun DownloadButton(
+    enabled: Boolean,
     onClick: () -> Unit
 ) {
-    val textColor = LocalAppTextColor.current
-
-    Column(
+    Row(
         modifier = Modifier
-            .width(66.dp)
+            .fillMaxWidth()
+            .height(46.dp)
             .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .size(34.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.06f))
-                .border(
-                    1.dp,
-                    Color.White.copy(alpha = 0.08f),
-                    RoundedCornerShape(12.dp)
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                tint = textColor,
-                modifier = Modifier.size(18.dp)
+            .background(
+                if (enabled) {
+                    Brush.horizontalGradient(
+                        listOf(Color(0xFF1FA84A), Color(0xFF30D158))
+                    )
+                } else {
+                    Brush.horizontalGradient(
+                        listOf(Color(0x331FA84A), Color(0x3330D158))
+                    )
+                }
             )
-        }
-        Spacer(Modifier.height(5.dp))
+            .clickable(enabled = enabled, onClick = onClick),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Download,
+            contentDescription = null,
+            tint = if (enabled) Color(0xFF04140A) else Color(0xFF6E8F78),
+            modifier = Modifier.size(17.dp)
+        )
+        Spacer(Modifier.width(7.dp))
         Text(
-            text = label,
-            fontSize = 10.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = textColor.copy(alpha = 0.80f)
+            text = "Download",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (enabled) Color(0xFF04140A) else Color(0xFF6E8F78)
         )
     }
 }
