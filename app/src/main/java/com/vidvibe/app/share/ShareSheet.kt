@@ -3,13 +3,16 @@ package com.vidvibe.app.share
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,16 +26,23 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -66,6 +77,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -77,17 +89,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private data class QualityChoice(val height: Int, val label: String, val detail: String)
+private data class QualityChoice(val height: Int, val label: String)
 
 private val qualities = listOf(
-    QualityChoice(2160, "Best", "4K"),
-    QualityChoice(1080, "1080p", "Full HD"),
-    QualityChoice(720, "720p", "HD"),
-    QualityChoice(480, "480p", "SD"),
-    QualityChoice(360, "360p", "Data saver")
+    QualityChoice(2160, "Best"),
+    QualityChoice(1080, "1080p"),
+    QualityChoice(720, "720p"),
+    QualityChoice(480, "480p"),
+    QualityChoice(360, "360p")
 )
 
 private val CardShape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp)
+private val Green = Color(0xFF30D158)
 
 /** Brand of the shared link, detected from the URL host. */
 private enum class Platform(val label: String) {
@@ -101,7 +114,7 @@ private enum class Platform(val label: String) {
     Vimeo("Vimeo"),
     Twitch("Twitch"),
     Threads("Threads"),
-    Other("Link");
+    Other("Video link");
 
     companion object {
         fun detect(host: String): Platform {
@@ -133,11 +146,12 @@ fun ShareSheet(
 ) {
     val palette = LocalMenuPalette.current
     val haptics = LocalHapticFeedback.current
+    val scroll = rememberScrollState()
 
     var link by remember { mutableStateOf(initialLink) }
     var quality by remember { mutableIntStateOf(720) }
-    var hasPicked by remember { mutableStateOf(false) }
     var shown by remember { mutableStateOf(false) }
+    var closing by remember { mutableStateOf(false) }
 
     val running = state is DownloadState.Running
     val complete = state is DownloadState.Complete
@@ -148,29 +162,41 @@ fun ShareSheet(
     }
     val platform = remember(host) { Platform.detect(host) }
 
+    fun dismiss() {
+        if (!closing) closing = true
+    }
+
     LaunchedEffect(Unit) { shown = true }
+    LaunchedEffect(closing) {
+        if (closing) {
+            shown = false
+            delay(210)
+            onCancel()
+        }
+    }
     LaunchedEffect(complete) {
         if (complete) {
-            delay(700)
+            delay(650)
+            shown = false
+            delay(210)
             onSaved()
         }
     }
 
     val scrim by animateFloatAsState(
         targetValue = if (shown) 0.62f else 0f,
-        animationSpec = tween(220),
+        animationSpec = tween(240),
         label = "scrim"
     )
     val cardScale by animateFloatAsState(
-        targetValue = if (shown) 1f else 0.92f,
-        animationSpec = spring(
-            dampingRatio = 0.80f,
-            stiffness = Spring.StiffnessMediumLow
-        ),
+        targetValue = if (shown) 1f else 0.95f,
+        animationSpec = tween(380, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
         label = "card-scale"
     )
 
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val cardMaxHeight = maxHeight * 0.92f
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -178,7 +204,7 @@ fun ShareSheet(
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
-                    onClick = onCancel
+                    onClick = { dismiss() }
                 )
         )
 
@@ -186,16 +212,22 @@ fun ShareSheet(
             visible = shown,
             enter = slideInVertically(
                 initialOffsetY = { it },
-                animationSpec = spring(
-                    dampingRatio = 0.82f,
-                    stiffness = Spring.StiffnessMediumLow
+                animationSpec = tween(
+                    durationMillis = 400,
+                    easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
                 )
-            ) + fadeIn(tween(180)),
+            ) + fadeIn(tween(200)),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(220, easing = CubicBezierEasing(0.4f, 0f, 0.8f, 0.4f))
+            ) + fadeOut(tween(180)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             Column(
                 modifier = Modifier
+                    .widthIn(max = 560.dp)
                     .fillMaxWidth()
+                    .heightIn(max = cardMaxHeight)
                     .graphicsLayer {
                         scaleX = cardScale
                         scaleY = cardScale
@@ -212,7 +244,9 @@ fun ShareSheet(
                         )
                     )
                     .border(1.dp, palette.highlight, CardShape)
+                    .imePadding()
                     .navigationBarsPadding()
+                    .verticalScroll(scroll)
                     .padding(horizontal = 18.dp)
                     .padding(top = 10.dp, bottom = 16.dp)
             ) {
@@ -266,17 +300,15 @@ fun ShareSheet(
                             fontWeight = FontWeight.SemiBold,
                             color = Color.White
                         )
-                        Spacer(Modifier.height(2.dp))
+                        Spacer(Modifier.height(3.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            PlatformBadge(platform = platform, size = 13.dp)
-                            Spacer(Modifier.width(5.dp))
+                            PlatformBadge(platform = platform, size = 14.dp)
+                            Spacer(Modifier.width(6.dp))
                             Text(
-                                text = if (host.isBlank()) platform.label
-                                else "${platform.label}  $host",
-                                fontSize = 9.sp,
-                                color = Color.White.copy(alpha = 0.62f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = platform.label,
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.66f)
                             )
                         }
                     }
@@ -296,7 +328,7 @@ fun ShareSheet(
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,
-                                onClick = onCancel
+                                onClick = { dismiss() }
                             ),
                         contentAlignment = Alignment.Center
                     ) {
@@ -361,14 +393,10 @@ fun ShareSheet(
 
                 QualityPicker(
                     selected = quality,
-                    bubbleVisible = hasPicked,
-                    paletteBackground = palette.background,
-                    paletteHighlight = palette.highlight,
                     enabled = !running,
                     onPick = { picked ->
                         if (quality != picked) {
                             quality = picked
-                            hasPicked = true
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         }
                     }
@@ -378,7 +406,13 @@ fun ShareSheet(
 
                 when (state) {
                     is DownloadState.Running -> {
-                        ProgressBlock(state.progress, state.status)
+                        SlideToDownload(
+                            label = state.status,
+                            enabled = false,
+                            progress = state.progress,
+                            highlight = palette.highlight,
+                            onTrigger = {}
+                        )
                     }
 
                     is DownloadState.Error -> {
@@ -392,17 +426,19 @@ fun ShareSheet(
                         SlideToDownload(
                             label = "Slide to try again",
                             enabled = link.isNotBlank(),
+                            progress = null,
                             highlight = palette.highlight,
                             onTrigger = { onDownload(link.trim(), quality) }
                         )
                     }
 
                     is DownloadState.Complete -> {
-                        Text(
-                            text = "Saved to your gallery",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFF30D158)
+                        SlideToDownload(
+                            label = "Saved to your gallery",
+                            enabled = false,
+                            progress = 100,
+                            highlight = palette.highlight,
+                            onTrigger = {}
                         )
                     }
 
@@ -411,8 +447,12 @@ fun ShareSheet(
                             label = if (link.isBlank()) "Paste a link first"
                             else "Slide to download",
                             enabled = link.isNotBlank(),
+                            progress = null,
                             highlight = palette.highlight,
-                            onTrigger = { onDownload(link.trim(), quality) }
+                            onTrigger = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onDownload(link.trim(), quality)
+                            }
                         )
                     }
                 }
@@ -430,12 +470,13 @@ fun ShareSheet(
     }
 }
 
+/**
+ * Quality row shaped like the bottom navigation: one rectangular glass cell
+ * that springs between the labels instead of a bubble floating above them.
+ */
 @Composable
 private fun QualityPicker(
     selected: Int,
-    bubbleVisible: Boolean,
-    paletteBackground: Color,
-    paletteHighlight: Color,
     enabled: Boolean,
     onPick: (Int) -> Unit
 ) {
@@ -445,81 +486,36 @@ private fun QualityPicker(
         val chipWidth = (maxWidth - gap * (count - 1)) / count
         val index = qualities.indexOfFirst { it.height == selected }.coerceAtLeast(0)
 
-        val bubbleWidth = 84.dp
-        val center = chipWidth * index + gap * index + chipWidth / 2
-        val targetX = (center - bubbleWidth / 2)
-            .coerceIn(0.dp, (maxWidth - bubbleWidth).coerceAtLeast(0.dp))
-
-        val bubbleX by animateDpAsState(
-            targetValue = targetX,
+        val indicatorX by animateDpAsState(
+            targetValue = (chipWidth + gap) * index,
             animationSpec = spring(
-                dampingRatio = 0.62f,
+                dampingRatio = 0.74f,
                 stiffness = Spring.StiffnessMediumLow
             ),
-            label = "quality-bubble-x"
-        )
-        val bubbleScale by animateFloatAsState(
-            targetValue = if (bubbleVisible) 1f else 0.86f,
-            animationSpec = spring(
-                dampingRatio = 0.55f,
-                stiffness = Spring.StiffnessMedium
-            ),
-            label = "quality-bubble-scale"
-        )
-        val bubbleAlpha by animateFloatAsState(
-            targetValue = if (bubbleVisible) 1f else 0f,
-            animationSpec = tween(150),
-            label = "quality-bubble-alpha"
+            label = "quality-indicator"
         )
 
-        Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(38.dp)
+        ) {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(25.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .offset(x = bubbleX)
-                        .width(bubbleWidth)
-                        .height(23.dp)
-                        .graphicsLayer {
-                            scaleX = bubbleScale
-                            scaleY = bubbleScale
-                            alpha = bubbleAlpha
-                            transformOrigin = TransformOrigin(0.5f, 1f)
-                        }
-                        .clip(RoundedCornerShape(7.dp))
-                        .background(paletteBackground.copy(alpha = 0.96f))
-                        .border(
-                            1.dp,
-                            paletteHighlight,
-                            RoundedCornerShape(7.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val picked = qualities[index]
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = picked.label,
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = picked.detail,
-                            fontSize = 7.5.sp,
-                            color = Color.White.copy(alpha = 0.55f)
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(4.dp))
+                    .offset(x = indicatorX)
+                    .width(chipWidth)
+                    .height(38.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.16f))
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = 0.40f),
+                        RoundedCornerShape(10.dp)
+                    )
+            )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.spacedBy(gap)
             ) {
                 qualities.forEach { choice ->
@@ -527,18 +523,8 @@ private fun QualityPicker(
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(34.dp)
-                            .clip(RoundedCornerShape(9.dp))
-                            .background(
-                                if (active) Color.White
-                                else Color.White.copy(alpha = 0.06f)
-                            )
-                            .border(
-                                1.dp,
-                                if (active) Color.White
-                                else Color.White.copy(alpha = 0.12f),
-                                RoundedCornerShape(9.dp)
-                            )
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(10.dp))
                             .then(
                                 if (!enabled) Modifier
                                 else Modifier.clickable(
@@ -552,8 +538,8 @@ private fun QualityPicker(
                             text = choice.label,
                             fontSize = 9.5.sp,
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                            color = if (active) Color(0xFF08080A)
-                            else Color.White.copy(alpha = 0.76f)
+                            color = if (active) Color.White
+                            else Color.White.copy(alpha = 0.58f)
                         )
                     }
                 }
@@ -562,150 +548,218 @@ private fun QualityPicker(
     }
 }
 
-@Composable
-private fun ProgressBlock(progress: Int, status: String) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = status,
-                fontSize = 10.sp,
-                color = Color.White.copy(alpha = 0.70f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "$progress%",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White
-            )
-        }
-        Spacer(Modifier.height(7.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(5.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(Color.White.copy(alpha = 0.12f))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress.coerceIn(0, 100) / 100f)
-                    .height(5.dp)
-                    .background(Color.White)
-            )
-        }
-    }
-}
-
+/**
+ * The app's big slide control: a tall glass track with a round handle, and a
+ * green fill that shows the percentage while dragging and while downloading.
+ */
 @Composable
 private fun SlideToDownload(
     label: String,
     enabled: Boolean,
+    progress: Int?,
     highlight: Color,
     onTrigger: () -> Unit
 ) {
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val progress = remember { Animatable(0f) }
-    var trackWidth by remember { mutableFloatStateOf(0f) }
-    val thumb = 42.dp
+
+    val handle = 52.dp
     val inset = 6.dp
+    var trackWidth by remember { mutableIntStateOf(0) }
     val maxOffset = with(density) {
-        (trackWidth - thumb.toPx() - inset.toPx() * 2f).coerceAtLeast(0f)
+        (trackWidth - handle.toPx() - inset.toPx() * 2f).coerceAtLeast(1f)
     }
 
-    val fraction = if (maxOffset > 0f) (progress.value / maxOffset).coerceIn(0f, 1f) else 0f
+    val settle = remember { Animatable(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragValue by remember { mutableFloatStateOf(0f) }
+    val offset = if (dragging) dragValue else settle.value
+
+    val dragFraction = (offset / maxOffset).coerceIn(0f, 1f)
+    val runningFraction by animateFloatAsState(
+        targetValue = if (progress != null) (progress / 100f).coerceIn(0f, 1f) else 0f,
+        animationSpec = tween(220, easing = LinearEasing),
+        label = "download-fill"
+    )
+    val fillFraction = if (progress != null) runningFraction else dragFraction
+    val percent = (fillFraction * 100f).roundToInt()
+
+    LaunchedEffect(progress) {
+        if (progress != null) {
+            dragging = false
+            dragValue = 0f
+            settle.snapTo(0f)
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp)
-            .onSizeChanged { trackWidth = it.width.toFloat() }
-            .clip(RoundedCornerShape(27.dp))
-            .background(Color.White.copy(alpha = if (enabled) 0.07f else 0.035f))
+            .height(64.dp)
+            .onSizeChanged { trackWidth = it.width }
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = if (enabled || progress != null) 0.06f else 0.035f))
             .border(
                 1.dp,
-                if (enabled) highlight else Color.White.copy(alpha = 0.09f),
-                RoundedCornerShape(27.dp)
+                if (enabled || progress != null) highlight else Color.White.copy(alpha = 0.08f),
+                RoundedCornerShape(18.dp)
             )
     ) {
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .clip(RoundedCornerShape(27.dp))
+                .fillMaxHeight()
+                .fillMaxWidth(fillFraction)
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            Color.White.copy(alpha = 0.14f * fraction),
-                            Color.White.copy(alpha = 0.05f * fraction)
+                            Green.copy(alpha = 0.92f),
+                            Green.copy(alpha = 0.66f)
                         )
                     )
                 )
         )
 
-        Text(
-            text = label,
-            fontSize = 10.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.8.sp,
-            color = Color.White.copy(alpha = (1f - fraction) * 0.65f + 0.15f),
-            modifier = Modifier.align(Alignment.Center)
-        )
-
         Box(
             modifier = Modifier
-                .offset {
-                    IntOffset(
-                        (progress.value + with(density) { inset.toPx() }).roundToInt(),
-                        with(density) { inset.toPx() }.roundToInt()
-                    )
-                }
-                .size(thumb)
-                .clip(RoundedCornerShape(21.dp))
+                .fillMaxSize()
                 .background(
-                    if (enabled) Color.White else Color.White.copy(alpha = 0.35f)
-                )
-                .pointerInput(enabled, maxOffset) {
-                    if (!enabled) return@pointerInput
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            scope.launch {
-                                if (maxOffset > 0f && progress.value >= maxOffset * 0.72f) {
-                                    progress.animateTo(maxOffset, tween(120))
-                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    onTrigger()
-                                    progress.snapTo(0f)
-                                } else {
-                                    progress.animateTo(0f, tween(180))
-                                }
-                            }
-                        },
-                        onDragCancel = {
-                            scope.launch { progress.animateTo(0f, tween(180)) }
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            scope.launch {
-                                progress.snapTo(
-                                    (progress.value + dragAmount).coerceIn(0f, maxOffset)
-                                )
-                            }
-                        }
+                    Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.10f), Color.Transparent)
                     )
-                },
-            contentAlignment = Alignment.Center
-        ) {
-            ArrowGlyph(
-                color = if (enabled) Color(0xFF08080A) else Color.Black.copy(alpha = 0.35f),
-                modifier = Modifier.size(18.dp)
+                )
+        )
+
+        if (progress != null) {
+            Column(
+                modifier = Modifier.align(Alignment.Center),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "$percent%",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    text = label,
+                    fontSize = 8.5.sp,
+                    color = Color.White.copy(alpha = 0.82f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(0.86f)
+                )
+            }
+        } else {
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.6.sp,
+                color = Color.White.copy(
+                    alpha = (1f - dragFraction * 3f).coerceIn(0f, 1f) * 0.72f
+                ),
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .fillMaxWidth()
             )
+            if (dragFraction > 0.02f) {
+                Text(
+                    text = "$percent%",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = (dragFraction * 2f).coerceIn(0f, 1f)),
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .offset {
+                        IntOffset(
+                            (offset + with(density) { inset.toPx() }).roundToInt(),
+                            0
+                        )
+                    }
+                    .size(handle)
+                    .shadow(
+                        elevation = 12.dp,
+                        shape = CircleShape,
+                        ambientColor = Green.copy(alpha = 0.45f),
+                        spotColor = Green.copy(alpha = 0.45f)
+                    )
+                    .clip(CircleShape)
+                    .background(
+                        if (enabled) Green else Green.copy(alpha = 0.38f)
+                    )
+                    .border(
+                        1.dp,
+                        Color.White.copy(alpha = if (enabled) 0.55f else 0.18f),
+                        CircleShape
+                    )
+                    .pointerInput(enabled, maxOffset) {
+                        if (!enabled) return@pointerInput
+                        detectHorizontalDragGestures(
+                            onDragStart = {
+                                dragging = true
+                                dragValue = settle.value
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            },
+                            onDragEnd = {
+                                dragging = false
+                                scope.launch {
+                                    if (dragValue >= maxOffset * 0.72f) {
+                                        settle.snapTo(dragValue)
+                                        settle.animateTo(maxOffset, tween(140))
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        onTrigger()
+                                        settle.snapTo(0f)
+                                        dragValue = 0f
+                                    } else {
+                                        settle.snapTo(dragValue)
+                                        settle.animateTo(
+                                            0f,
+                                            tween(
+                                                280,
+                                                easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
+                                            )
+                                        )
+                                        dragValue = 0f
+                                    }
+                                }
+                            },
+                            onDragCancel = {
+                                dragging = false
+                                scope.launch {
+                                    settle.snapTo(dragValue)
+                                    settle.animateTo(
+                                        0f,
+                                        tween(
+                                            280,
+                                            easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
+                                        )
+                                    )
+                                    dragValue = 0f
+                                }
+                            },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                dragValue = (dragValue + dragAmount).coerceIn(0f, maxOffset)
+                            }
+                        )
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                ArrowGlyph(
+                    color = if (enabled) Color(0xFF06340F)
+                    else Color.Black.copy(alpha = 0.35f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }
