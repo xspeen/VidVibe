@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -197,23 +198,27 @@ fun SuccessCelebration(
                         this.alpha = remaining
                     }
             ) {
-                val stroke = size.minDimension * 0.16f
+                val stroke = this.size.minDimension * 0.16f
                 val c = center
                 drawLine(
                     sparkle.color,
                     Offset(c.x, 0f),
-                    Offset(c.x, size.height),
+                    Offset(c.x, this.size.height),
                     stroke,
                     StrokeCap.Round
                 )
                 drawLine(
                     sparkle.color,
                     Offset(0f, c.y),
-                    Offset(size.width, c.y),
+                    Offset(this.size.width, c.y),
                     stroke,
                     StrokeCap.Round
                 )
-                drawCircle(sparkle.color, radius = size.minDimension * 0.16f, center = c)
+                drawCircle(
+                    sparkle.color,
+                    radius = this.size.minDimension * 0.16f,
+                    center = c
+                )
             }
         }
 
