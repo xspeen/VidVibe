@@ -92,36 +92,45 @@ fun CustomBottomNav(
             .fillMaxWidth()
             .graphicsLayer { translationY = translation }
             .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 24.dp)
+            .padding(horizontal = 12.dp, vertical = 16.dp)
     ) {
-        val shape = RoundedCornerShape(38.dp)
+        // A rectangle, not a pill: dark body, white glass edge.
+        val shape = RoundedCornerShape(14.dp)
         BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(76.dp)
+                .height(68.dp)
                 .clip(shape)
-                .then(
-                    if (liquidGlass) {
-                        Modifier.background(Color(0xB30A0A0C))
-                    } else {
-                        Modifier.background(Color(0xF208080A))
-                    }
+                .background(
+                    Brush.verticalGradient(
+                        if (liquidGlass) {
+                            listOf(Color(0xF2141418), Color(0xF2070709))
+                        } else {
+                            listOf(Color(0xFF101014), Color(0xFF050506))
+                        }
+                    )
                 )
                 .border(
-                    width = 1.dp,
-                    color = Color.White.copy(alpha = 0.08f),
+                    width = 1.5.dp,
+                    color = Color.White.copy(alpha = if (liquidGlass) 0.34f else 0.12f),
                     shape = shape
                 )
-                .padding(horizontal = 8.dp)
         ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color.White.copy(alpha = if (liquidGlass) 0.55f else 0.10f))
+            )
+
             val indicatorWidth = 64.dp
-            // Row uses SpaceAround with fixed 64dp items, so mirror that spacing.
             val gap = (maxWidth - indicatorWidth * destinations.size) / 8f
             val indicatorOffset by animateDpAsState(
                 targetValue = gap + (indicatorWidth + gap * 2f) * selectedIndex.toFloat(),
                 animationSpec = tween(
-                    durationMillis = 450,
-                    easing = CubicBezierEasing(0.34f, 1.56f, 0.64f, 1f)
+                    durationMillis = 360,
+                    easing = CubicBezierEasing(0.2f, 1f, 0.3f, 1f)
                 ),
                 label = "nav-indicator"
             )
@@ -129,39 +138,17 @@ fun CustomBottomNav(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .offset(x = indicatorOffset, y = 6.dp)
+                    .offset(x = indicatorOffset, y = 8.dp)
                     .width(indicatorWidth)
-                    .height(64.dp)
-                    .clip(RoundedCornerShape(32.dp))
-                    .background(Color.White.copy(alpha = 0.12f))
+                    .height(52.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White.copy(alpha = 0.16f))
                     .border(
                         width = 1.dp,
-                        color = Color.White.copy(alpha = 0.18f),
-                        shape = RoundedCornerShape(32.dp)
+                        color = Color.White.copy(alpha = 0.40f),
+                        shape = RoundedCornerShape(10.dp)
                     )
-            ) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(1.5.dp)
-                        .background(Color.White.copy(alpha = 0.60f))
-                )
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.5f)
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.White.copy(alpha = 0.20f),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-            }
+            )
 
             Row(
                 modifier = Modifier.fillMaxSize(),
@@ -197,7 +184,7 @@ private fun NavItem(
         label = "nav-lift"
     )
     val contentAlpha by animateFloatAsState(
-        targetValue = if (selected) 1f else 0.5f,
+        targetValue = if (selected) 1f else 0.58f,
         animationSpec = tween(300),
         label = "nav-alpha"
     )
@@ -219,14 +206,14 @@ private fun NavItem(
     ) {
         Box(
             modifier = Modifier
-                .size(22.dp)
+                .size(20.dp)
                 .graphicsLayer { translationY = liftPx },
             contentAlignment = Alignment.Center
         ) {
             NavGlyph(
                 glyph = destination.glyph,
                 color = textColor,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(20.dp)
             )
             if (destination.glyph == NavGlyph.Profile) {
                 Crown(
@@ -237,13 +224,13 @@ private fun NavItem(
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
+        Spacer(Modifier.height(5.dp))
         Text(
             text = destination.label,
             style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 9.sp,
+                fontSize = 8.5.sp,
                 fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.2.sp
+                letterSpacing = 0.3.sp
             ),
             color = textColor
         )

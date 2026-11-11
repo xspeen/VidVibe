@@ -301,10 +301,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsStore.setOnboardingSeen(seen) }
     }
 
-    fun setFloatingWindowEnabled(enabled: Boolean) {
-        viewModelScope.launch { settingsStore.setFloatingWindowEnabled(enabled) }
-    }
-
     fun requestTab(index: Int) {
         _pendingTab.value = index.coerceIn(0, 3)
     }

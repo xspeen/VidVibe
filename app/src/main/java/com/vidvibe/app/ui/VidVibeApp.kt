@@ -5,7 +5,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -28,13 +26,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.formatFileSize
-import com.vidvibe.app.floating.FloatingWindowService
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
 import com.vidvibe.app.ui.components.CustomBottomNav
 import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
@@ -101,54 +95,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
         cookieError?.let { message ->
             showToast(message)
             viewModel.consumeCookieError()
-        }
-    }
-
-    var overlayGranted by remember {
-        mutableStateOf(FloatingWindowService.hasPermission(context))
-    }
-    var pendingWindowEnable by remember { mutableStateOf(false) }
-
-    val overlayLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) {
-        overlayGranted = FloatingWindowService.hasPermission(context)
-        if (overlayGranted && pendingWindowEnable) {
-            viewModel.setFloatingWindowEnabled(true)
-        }
-        pendingWindowEnable = false
-    }
-
-    fun openOverlaySettings() {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.fromParts("package", context.packageName, null)
-        )
-        runCatching { overlayLauncher.launch(intent) }
-            .onFailure { showToast("Overlay permission is not available on this device.") }
-    }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                overlayGranted = FloatingWindowService.hasPermission(context)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-
-    LaunchedEffect(settings.floatingWindowEnabled, overlayGranted) {
-        if (!overlayGranted) {
-            if (settings.floatingWindowEnabled) viewModel.setFloatingWindowEnabled(false)
-            FloatingWindowService.stop(context)
-            return@LaunchedEffect
-        }
-        if (settings.floatingWindowEnabled) {
-            FloatingWindowService.start(context)
-        } else {
-            FloatingWindowService.stop(context)
         }
     }
 
@@ -232,22 +178,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
             else -> MeScreen(
                 settings = settings,
                 librarySizeLabel = formatFileSize(videos.sumOf { it.sizeBytes }),
-                floatingWindowEnabled = settings.floatingWindowEnabled,
-                overlayPermissionGranted = overlayGranted,
-                onFloatingWindowEnabledChange = { enabled ->
-                    if (enabled) {
-                        if (FloatingWindowService.hasPermission(context)) {
-                            viewModel.setFloatingWindowEnabled(true)
-                        } else {
-                            pendingWindowEnable = true
-                            openOverlaySettings()
-                        }
-                    } else {
-                        viewModel.setFloatingWindowEnabled(false)
-                        FloatingWindowService.stop(context)
-                    }
-                },
-                onRequestOverlayPermission = { openOverlaySettings() },
                 onApplyCustomization = { selection ->
                     viewModel.setCustomization(
                         animationStyle = selection.animationStyle.key,

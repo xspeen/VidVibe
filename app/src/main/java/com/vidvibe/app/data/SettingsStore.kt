@@ -17,7 +17,7 @@ private val Context.vidVibeDataStore: DataStore<Preferences> by preferencesDataS
 )
 
 data class AppSettings(
-    val fontSizeSp: Float = 16f,
+    val fontSizeSp: Float = 15f,
     val liquidGlass: Boolean = true,
     val backgroundColor: Int = 0xFF050507.toInt(),
     val wifiOnly: Boolean = false,
@@ -29,7 +29,6 @@ data class AppSettings(
     val textColor: String = "white",
     val glassColor: String = "default",
     val appTheme: String = "dark",
-    val floatingWindowEnabled: Boolean = false
 )
 
 class SettingsStore(private val context: Context) {
@@ -47,12 +46,11 @@ class SettingsStore(private val context: Context) {
         val textColor = stringPreferencesKey("text_color")
         val glassColor = stringPreferencesKey("glass_color")
         val appTheme = stringPreferencesKey("app_theme")
-        val floatingWindowEnabled = booleanPreferencesKey("floating_window_enabled")
     }
 
     val settings: Flow<AppSettings> = context.vidVibeDataStore.data.map { preferences ->
         AppSettings(
-            fontSizeSp = preferences[Keys.fontSize] ?: 16f,
+            fontSizeSp = preferences[Keys.fontSize] ?: 15f,
             liquidGlass = preferences[Keys.liquidGlass] ?: true,
             backgroundColor = preferences[Keys.backgroundColor] ?: 0xFF050507.toInt(),
             wifiOnly = preferences[Keys.wifiOnly] ?: false,
@@ -64,7 +62,6 @@ class SettingsStore(private val context: Context) {
             textColor = preferences[Keys.textColor] ?: "white",
             glassColor = preferences[Keys.glassColor] ?: "default",
             appTheme = preferences[Keys.appTheme] ?: "dark",
-            floatingWindowEnabled = preferences[Keys.floatingWindowEnabled] ?: false
         )
     }
 
@@ -90,10 +87,6 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setOnboardingSeen(seen: Boolean) {
         context.vidVibeDataStore.edit { it[Keys.onboardingSeen] = seen }
-    }
-
-    suspend fun setFloatingWindowEnabled(enabled: Boolean) {
-        context.vidVibeDataStore.edit { it[Keys.floatingWindowEnabled] = enabled }
     }
 
     suspend fun setCustomization(

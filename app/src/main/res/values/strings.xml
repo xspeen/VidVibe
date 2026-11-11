@@ -5,4 +5,5 @@
     <string name="permission_body">VidVibe needs permission to read the videos on this device so it can show and play them. It never uploads your library.</string>
     <string name="permission_button">Allow access</string>
     <string name="open_settings">Open settings</string>
+    <string name="share_target_label">Save with VidVibe</string>
 </resources>

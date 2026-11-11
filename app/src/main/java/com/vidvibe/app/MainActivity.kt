@@ -36,7 +36,6 @@ import com.vidvibe.app.ui.VidVibeApp
 import com.vidvibe.app.ui.components.PermissionScreen
 import com.vidvibe.app.ui.screens.AppLockScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
-import com.vidvibe.app.floating.FloatingWindowService
 import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
@@ -124,15 +123,6 @@ class MainActivity : FragmentActivity() {
             LaunchedEffect(appReady) {
                 if (appReady && !permissionGranted && !permissionRequested) {
                     requestPermission()
-                }
-            }
-
-            LaunchedEffect(settingsLoaded, settings.floatingWindowEnabled) {
-                if (!settingsLoaded) return@LaunchedEffect
-                if (settings.floatingWindowEnabled && FloatingWindowService.hasPermission(this@MainActivity)) {
-                    FloatingWindowService.start(this@MainActivity)
-                } else {
-                    FloatingWindowService.stop(this@MainActivity)
                 }
             }
 

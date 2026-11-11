@@ -54,7 +54,9 @@ fun VidVibeTheme(
     @Suppress("unused")
     val darkTheme = isSystemInDarkTheme()
     val density = LocalDensity.current
-    val fontScale = (fontScaleSp / 16f).coerceIn(0.75f, 1.5f)
+    // Text is deliberately compact: the whole app sits at 0.88 of the
+    // chosen scale so labels never dominate the glass surfaces.
+    val fontScale = ((fontScaleSp / 16f) * 0.88f).coerceIn(0.70f, 1.30f)
 
     CompositionLocalProvider(
         LocalDensity provides Density(density = density.density, fontScale = fontScale),
