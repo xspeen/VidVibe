@@ -4,9 +4,13 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -43,6 +47,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -63,6 +70,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
@@ -76,6 +85,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -87,7 +97,11 @@ import com.vidvibe.app.ui.theme.LocalMenuPalette
 import com.vidvibe.app.ui.viewmodel.DownloadState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.random.Random
 
 private data class QualityChoice(val height: Int, val label: String)
 
@@ -170,22 +184,24 @@ fun ShareSheet(
     LaunchedEffect(closing) {
         if (closing) {
             shown = false
-            delay(210)
+            delay(700)
             onCancel()
         }
     }
     LaunchedEffect(complete) {
         if (complete) {
-            delay(650)
+            // Hold the success tick long enough to read: sparkles, glow and
+            // check draw slowly, then the drawer slides down in slow motion.
+            delay(3000)
             shown = false
-            delay(210)
+            delay(940)
             onSaved()
         }
     }
 
     val scrim by animateFloatAsState(
         targetValue = if (shown) 0.62f else 0f,
-        animationSpec = tween(240),
+        animationSpec = tween(420),
         label = "scrim"
     )
     val cardScale by animateFloatAsState(
@@ -219,11 +235,14 @@ fun ShareSheet(
             ) + fadeIn(tween(200)),
             exit = slideOutVertically(
                 targetOffsetY = { it },
-                animationSpec = tween(220, easing = CubicBezierEasing(0.4f, 0f, 0.8f, 0.4f))
-            ) + fadeOut(tween(180)),
+                animationSpec = tween(
+                    durationMillis = 900,
+                    easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
+                )
+            ) + fadeOut(tween(760)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .widthIn(max = 560.dp)
                     .fillMaxWidth()
@@ -244,178 +263,176 @@ fun ShareSheet(
                         )
                     )
                     .border(1.dp, palette.highlight, CardShape)
-                    .imePadding()
-                    .navigationBarsPadding()
-                    .verticalScroll(scroll)
-                    .padding(horizontal = 18.dp)
-                    .padding(top = 10.dp, bottom = 16.dp)
             ) {
-                Box(
+                Column(
                     modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .width(38.dp)
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(Color.White.copy(alpha = 0.28f))
-                )
-
-                Spacer(Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                        .imePadding()
+                        .navigationBarsPadding()
+                        .verticalScroll(scroll)
+                        .padding(horizontal = 18.dp)
+                        .padding(top = 10.dp, bottom = 16.dp)
                 ) {
-                    // VidVibe's own icon, so the drawer is clearly ours.
-                    // Adaptive launcher icons are XML, which painterResource
-                    // cannot decode, so compose the two bitmap layers instead.
                     Box(
                         modifier = Modifier
-                            .size(34.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .border(
-                                1.dp,
-                                Color.White.copy(alpha = 0.22f),
-                                RoundedCornerShape(10.dp)
-                            ),
-                        contentAlignment = Alignment.Center
+                            .align(Alignment.CenterHorizontally)
+                            .width(38.dp)
+                            .height(4.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(Color.White.copy(alpha = 0.28f))
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_launcher_background),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                        Image(
-                            painter = painterResource(id = R.drawable.ic_launcher_foreground),
-                            contentDescription = null,
-                            modifier = Modifier.fillMaxSize()
-                        )
-                    }
-
-                    Spacer(Modifier.width(10.dp))
-
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "Save with VidVibe",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White
-                        )
-                        Spacer(Modifier.height(3.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            PlatformBadge(platform = platform, size = 14.dp)
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                text = platform.label,
-                                fontSize = 9.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = Color.White.copy(alpha = 0.66f)
+                        // VidVibe's own icon, so the drawer is clearly ours.
+                        // Adaptive launcher icons are XML, which painterResource
+                        // cannot decode, so compose the two bitmap layers instead.
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(
+                                    1.dp,
+                                    Color.White.copy(alpha = 0.22f),
+                                    RoundedCornerShape(10.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_launcher_background),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Image(
+                                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
-                    }
 
-                    Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(10.dp))
 
-                    Box(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .border(
-                                1.dp,
-                                Color.White.copy(alpha = 0.14f),
-                                RoundedCornerShape(8.dp)
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Save with VidVibe",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White
                             )
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null,
-                                onClick = { dismiss() }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        CloseGlyph(
-                            color = Color.White.copy(alpha = 0.70f),
-                            modifier = Modifier.size(11.dp)
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color.White.copy(alpha = 0.06f))
-                        .border(
-                            1.dp,
-                            Color.White.copy(alpha = 0.10f),
-                            RoundedCornerShape(10.dp)
-                        )
-                        .padding(horizontal = 10.dp, vertical = 9.dp)
-                ) {
-                    BasicTextField(
-                        value = link,
-                        onValueChange = { if (!running) link = it },
-                        singleLine = true,
-                        enabled = !running,
-                        textStyle = TextStyle(
-                            color = Color.White.copy(alpha = 0.90f),
-                            fontSize = 10.5.sp
-                        ),
-                        cursorBrush = Brush.verticalGradient(
-                            listOf(Color.White, Color.White)
-                        ),
-                        decorationBox = { inner ->
-                            if (link.isBlank()) {
+                            Spacer(Modifier.height(3.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                PlatformBadge(platform = platform, size = 14.dp)
+                                Spacer(Modifier.width(6.dp))
                                 Text(
-                                    text = "Paste a video link",
-                                    fontSize = 10.5.sp,
-                                    color = Color.White.copy(alpha = 0.36f)
+                                    text = platform.label,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color.White.copy(alpha = 0.66f)
                                 )
                             }
-                            inner()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
+                        }
 
-                Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.width(8.dp))
 
-                Text(
-                    text = "QUALITY",
-                    fontSize = 8.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.2.sp,
-                    color = Color.White.copy(alpha = 0.42f)
-                )
-
-                Spacer(Modifier.height(7.dp))
-
-                QualityPicker(
-                    selected = quality,
-                    enabled = !running,
-                    onPick = { picked ->
-                        if (quality != picked) {
-                            quality = picked
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        Box(
+                            modifier = Modifier
+                                .size(26.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(
+                                    1.dp,
+                                    Color.White.copy(alpha = 0.14f),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = { dismiss() }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CloseGlyph(
+                                color = Color.White.copy(alpha = 0.70f),
+                                modifier = Modifier.size(11.dp)
+                            )
                         }
                     }
-                )
 
-                Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(12.dp))
 
-                when (state) {
-                    is DownloadState.Running -> {
-                        SlideToDownload(
-                            label = state.status,
-                            enabled = false,
-                            progress = state.progress,
-                            highlight = palette.highlight,
-                            onTrigger = {}
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = 0.06f))
+                            .border(
+                                1.dp,
+                                Color.White.copy(alpha = 0.10f),
+                                RoundedCornerShape(10.dp)
+                            )
+                            .padding(horizontal = 10.dp, vertical = 9.dp)
+                    ) {
+                        BasicTextField(
+                            value = link,
+                            onValueChange = { if (!running && !complete) link = it },
+                            singleLine = true,
+                            enabled = !running && !complete,
+                            textStyle = TextStyle(
+                                color = Color.White.copy(alpha = 0.90f),
+                                fontSize = 10.5.sp
+                            ),
+                            cursorBrush = Brush.verticalGradient(
+                                listOf(Color.White, Color.White)
+                            ),
+                            decorationBox = { inner ->
+                                if (link.isBlank()) {
+                                    Text(
+                                        text = "Paste a video link",
+                                        fontSize = 10.5.sp,
+                                        color = Color.White.copy(alpha = 0.36f)
+                                    )
+                                }
+                                inner()
+                            },
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
 
-                    is DownloadState.Error -> {
+                    Spacer(Modifier.height(14.dp))
+
+                    Text(
+                        text = "QUALITY",
+                        fontSize = 8.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 1.2.sp,
+                        color = Color.White.copy(alpha = 0.42f)
+                    )
+
+                    Spacer(Modifier.height(7.dp))
+
+                    QualityPicker(
+                        selected = quality,
+                        enabled = !running && !complete,
+                        onPick = { picked ->
+                            if (quality != picked) {
+                                quality = picked
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        }
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+
+                    val captionAlpha by animateFloatAsState(
+                        targetValue = if (complete) 0f else 1f,
+                        animationSpec = tween(200),
+                        label = "caption-alpha"
+                    )
+
+                    if (state is DownloadState.Error) {
                         Text(
                             text = state.message,
                             fontSize = 10.sp,
@@ -423,48 +440,38 @@ fun ShareSheet(
                             color = Color(0xFFFF8A8E)
                         )
                         Spacer(Modifier.height(10.dp))
-                        SlideToDownload(
-                            label = "Slide to try again",
-                            enabled = link.isNotBlank(),
-                            progress = null,
-                            highlight = palette.highlight,
-                            onTrigger = { onDownload(link.trim(), quality) }
-                        )
                     }
 
-                    is DownloadState.Complete -> {
-                        SlideToDownload(
-                            label = "Saved to your gallery",
-                            enabled = false,
-                            progress = 100,
-                            highlight = palette.highlight,
-                            onTrigger = {}
-                        )
-                    }
+                    DownloadWindow(
+                        state = state,
+                        label = when {
+                            state is DownloadState.Error -> "Slide to try again"
+                            link.isBlank() -> "Paste a link first"
+                            else -> "Slide to download"
+                        },
+                        enabled = link.isNotBlank() &&
+                            (state is DownloadState.Idle || state is DownloadState.Error),
+                        onTrigger = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            onDownload(link.trim(), quality)
+                        }
+                    )
 
-                    DownloadState.Idle -> {
-                        SlideToDownload(
-                            label = if (link.isBlank()) "Paste a link first"
-                            else "Slide to download",
-                            enabled = link.isNotBlank(),
-                            progress = null,
-                            highlight = palette.highlight,
-                            onTrigger = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onDownload(link.trim(), quality)
-                            }
-                        )
-                    }
+                    Spacer(Modifier.height(8.dp))
+
+                    Text(
+                        text = when {
+                            running -> (state as DownloadState.Running).status
+                            complete -> "Saved to your gallery"
+                            else -> "Saves straight to your gallery"
+                        },
+                        fontSize = 8.5.sp,
+                        color = Color.White.copy(alpha = 0.32f * captionAlpha),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
                 }
-
-                Spacer(Modifier.height(8.dp))
-
-                Text(
-                    text = "Saves straight to your gallery",
-                    fontSize = 8.5.sp,
-                    color = Color.White.copy(alpha = 0.32f),
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
             }
         }
     }
@@ -549,216 +556,462 @@ private fun QualityPicker(
 }
 
 /**
- * The app's big slide control: a tall glass track with a round handle, and a
- * green fill that shows the percentage while dragging and while downloading.
+ * The delete-flow window, reused for downloading: one 80 dp glass track with
+ * the 68 dp round handle and the pulsing label. Reaching the end hands the
+ * same window over to the green loader, so the bar grows inside it, and the
+ * finished download pops its tick with green sparks in that same window.
  */
 @Composable
-private fun SlideToDownload(
+private fun DownloadWindow(
+    state: DownloadState,
     label: String,
     enabled: Boolean,
-    progress: Int?,
-    highlight: Color,
     onTrigger: () -> Unit
 ) {
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
+    val palette = LocalMenuPalette.current
 
-    val handle = 52.dp
-    val inset = 6.dp
-    var trackWidth by remember { mutableIntStateOf(0) }
-    val maxOffset = with(density) {
-        (trackWidth - handle.toPx() - inset.toPx() * 2f).coerceAtLeast(1f)
+    val running = state is DownloadState.Running
+    val complete = state is DownloadState.Complete
+    val target = when (state) {
+        is DownloadState.Running -> state.progress / 100f
+        is DownloadState.Complete -> 1f
+        else -> 0f
     }
+
+    val fill by animateFloatAsState(
+        targetValue = target.coerceIn(0f, 1f),
+        animationSpec = tween(
+            durationMillis = if (running) 140 else 420,
+            easing = if (running) LinearEasing else CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+        ),
+        label = "download-fill"
+    )
+    val slideAlpha by animateFloatAsState(
+        targetValue = if (running || complete) 0f else 1f,
+        animationSpec = tween(260),
+        label = "slide-alpha"
+    )
+    val loaderAlpha by animateFloatAsState(
+        targetValue = if (running || complete) 1f else 0f,
+        animationSpec = tween(260),
+        label = "loader-alpha"
+    )
+    val percentAlpha by animateFloatAsState(
+        targetValue = if (running) 1f else 0f,
+        animationSpec = tween(320),
+        label = "percent-alpha"
+    )
+
+    val insetPx = with(density) { 6.dp.toPx() }
+    val handlePx = with(density) { 68.dp.toPx() }
+    var trackWidthPx by remember { mutableIntStateOf(0) }
+    val maxOffset = (trackWidthPx - handlePx - insetPx * 2f).coerceAtLeast(1f)
 
     val settle = remember { Animatable(0f) }
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableFloatStateOf(0f) }
     val offset = if (dragging) dragValue else settle.value
 
-    val dragFraction = (offset / maxOffset).coerceIn(0f, 1f)
-    val runningFraction by animateFloatAsState(
-        targetValue = if (progress != null) (progress / 100f).coerceIn(0f, 1f) else 0f,
-        animationSpec = tween(220, easing = LinearEasing),
-        label = "download-fill"
-    )
-    val fillFraction = if (progress != null) runningFraction else dragFraction
-    val percent = (fillFraction * 100f).roundToInt()
-
-    LaunchedEffect(progress) {
-        if (progress != null) {
+    LaunchedEffect(running, complete) {
+        if (!running && !complete) {
             dragging = false
             dragValue = 0f
             settle.snapTo(0f)
         }
     }
 
+    val pulse by rememberInfiniteTransition(label = "slide-pulse").animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "slide-pulse-value"
+    )
+    val pulseAlpha = 0.4f + pulse * 0.4f
+    val dragFade = (1f - offset / (maxOffset * 0.5f)).coerceIn(0f, 1f)
+    val labelAlpha = pulseAlpha * dragFade * slideAlpha
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
-            .onSizeChanged { trackWidth = it.width }
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color.White.copy(alpha = if (enabled || progress != null) 0.06f else 0.035f))
-            .border(
-                1.dp,
-                if (enabled || progress != null) highlight else Color.White.copy(alpha = 0.08f),
-                RoundedCornerShape(18.dp)
-            )
+            .height(80.dp)
+            .onSizeChanged { trackWidthPx = it.width }
     ) {
         Box(
             modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(fillFraction)
+                .fillMaxSize()
                 .background(
-                    Brush.horizontalGradient(
+                    brush = Brush.verticalGradient(
                         listOf(
-                            Green.copy(alpha = 0.92f),
-                            Green.copy(alpha = 0.66f)
+                            palette.background,
+                            palette.background.copy(
+                                alpha = (palette.background.alpha * 0.85f).coerceIn(0f, 1f)
+                            )
                         )
-                    )
+                    ),
+                    shape = RoundedCornerShape(40.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    brush = Brush.verticalGradient(
+                        listOf(
+                            palette.highlight,
+                            Color.White.copy(alpha = 0.10f),
+                            Color.White.copy(alpha = 0.05f)
+                        )
+                    ),
+                    shape = RoundedCornerShape(40.dp)
                 )
         )
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color.White.copy(alpha = 0.10f), Color.Transparent)
-                    )
-                )
-        )
-
-        if (progress != null) {
-            Column(
-                modifier = Modifier.align(Alignment.Center),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "$percent%",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-                Spacer(Modifier.height(1.dp))
-                Text(
-                    text = label,
-                    fontSize = 8.5.sp,
-                    color = Color.White.copy(alpha = 0.82f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(0.86f)
-                )
-            }
-        } else {
-            Text(
-                text = label,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.6.sp,
-                color = Color.White.copy(
-                    alpha = (1f - dragFraction * 3f).coerceIn(0f, 1f) * 0.72f
-                ),
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .fillMaxWidth()
-            )
-            if (dragFraction > 0.02f) {
-                Text(
-                    text = "$percent%",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White.copy(alpha = (dragFraction * 2f).coerceIn(0f, 1f)),
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-
+                .padding(6.dp)
+                .clip(RoundedCornerShape(34.dp))
+                .background(Color.White.copy(alpha = 0.05f))
+                .graphicsLayer { alpha = loaderAlpha }
+        ) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .offset {
-                        IntOffset(
-                            (offset + with(density) { inset.toPx() }).roundToInt(),
-                            0
-                        )
-                    }
-                    .size(handle)
-                    .shadow(
-                        elevation = 12.dp,
-                        shape = CircleShape,
-                        ambientColor = Green.copy(alpha = 0.45f),
-                        spotColor = Green.copy(alpha = 0.45f)
+                    .fillMaxHeight()
+                    .fillMaxWidth(fill)
+                    .background(Green)
+            )
+        }
+
+        Text(
+            text = label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White.copy(alpha = labelAlpha),
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+        )
+
+        Text(
+            text = "${(fill * 100f).roundToInt()}%",
+            style = TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                shadow = Shadow(
+                    color = Color.Black.copy(alpha = 0.5f),
+                    offset = Offset(0f, 2f),
+                    blurRadius = 4f
+                )
+            ),
+            color = Color.White,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .graphicsLayer { alpha = percentAlpha }
+        )
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .offset {
+                    IntOffset(
+                        x = (insetPx + offset).roundToInt(),
+                        y = insetPx.roundToInt()
                     )
-                    .clip(CircleShape)
-                    .background(
-                        if (enabled) Green else Green.copy(alpha = 0.38f)
-                    )
-                    .border(
-                        1.dp,
-                        Color.White.copy(alpha = if (enabled) 0.55f else 0.18f),
-                        CircleShape
-                    )
-                    .pointerInput(enabled, maxOffset) {
-                        if (!enabled) return@pointerInput
-                        detectHorizontalDragGestures(
-                            onDragStart = {
-                                dragging = true
-                                dragValue = settle.value
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            },
-                            onDragEnd = {
-                                dragging = false
-                                scope.launch {
-                                    if (dragValue >= maxOffset * 0.72f) {
-                                        settle.snapTo(dragValue)
-                                        settle.animateTo(maxOffset, tween(140))
-                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        onTrigger()
-                                        settle.snapTo(0f)
-                                        dragValue = 0f
-                                    } else {
-                                        settle.snapTo(dragValue)
-                                        settle.animateTo(
-                                            0f,
-                                            tween(
-                                                280,
-                                                easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
-                                            )
-                                        )
-                                        dragValue = 0f
-                                    }
-                                }
-                            },
-                            onDragCancel = {
-                                dragging = false
+                }
+                .size(68.dp)
+                .graphicsLayer {
+                    alpha = slideAlpha
+                    scaleX = 0.72f + 0.28f * slideAlpha
+                    scaleY = 0.72f + 0.28f * slideAlpha
+                }
+                .shadow(
+                    elevation = 12.dp,
+                    shape = CircleShape,
+                    ambientColor = Green.copy(alpha = 0.40f),
+                    spotColor = Green.copy(alpha = 0.40f)
+                )
+                .clip(CircleShape)
+                .background(if (enabled) Green else Green.copy(alpha = 0.35f))
+                .pointerInput(maxOffset, enabled) {
+                    if (!enabled) return@pointerInput
+                    detectHorizontalDragGestures(
+                        onDragStart = {
+                            dragging = true
+                            dragValue = settle.value
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragValue = (dragValue + dragAmount).coerceIn(0f, maxOffset)
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            if (dragValue >= maxOffset * 0.8f) {
                                 scope.launch {
                                     settle.snapTo(dragValue)
                                     settle.animateTo(
-                                        0f,
-                                        tween(
-                                            280,
+                                        targetValue = maxOffset,
+                                        animationSpec = tween(
+                                            durationMillis = 200,
+                                            easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
+                                        )
+                                    )
+                                    onTrigger()
+                                }
+                            } else {
+                                scope.launch {
+                                    settle.snapTo(dragValue)
+                                    settle.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = tween(
+                                            durationMillis = 300,
                                             easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
                                         )
                                     )
                                     dragValue = 0f
                                 }
-                            },
-                            onHorizontalDrag = { change, dragAmount ->
-                                change.consume()
-                                dragValue = (dragValue + dragAmount).coerceIn(0f, maxOffset)
                             }
-                        )
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                ArrowGlyph(
-                    color = if (enabled) Color(0xFF06340F)
-                    else Color.Black.copy(alpha = 0.35f),
-                    modifier = Modifier.size(20.dp)
+                        },
+                        onDragCancel = {
+                            dragging = false
+                            scope.launch {
+                                settle.snapTo(dragValue)
+                                settle.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = tween(
+                                        durationMillis = 300,
+                                        easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
+                                    )
+                                )
+                                dragValue = 0f
+                            }
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.ChevronRight,
+                contentDescription = "Slide to download",
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        SuccessOverlay(
+            visible = complete,
+            modifier = Modifier.align(Alignment.Center)
+        )
+    }
+}
+
+private data class Sparkle(
+    val angle: Float,
+    val distance: Float,
+    val color: Color
+)
+
+@Composable
+private fun SuccessOverlay(
+    visible: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val scale = remember { Animatable(0f) }
+    val alpha = remember { Animatable(0f) }
+    val circle = remember { Animatable(0f) }
+    val check = remember { Animatable(0f) }
+    val burst = remember { Animatable(0f) }
+
+    val sparkles = remember {
+        val colors = listOf(
+            Color.White,
+            Green,
+            Color(0xFFA7F3C5),
+            Color(0xFFFFD700)
+        )
+        List(16) { index ->
+            Sparkle(
+                angle = (index / 16f) * (2f * PI.toFloat()),
+                distance = 36f + Random.nextFloat() * 28f,
+                color = colors[index % colors.size]
+            )
+        }
+    }
+
+    LaunchedEffect(visible) {
+        if (visible) {
+            scale.snapTo(0f)
+            alpha.snapTo(0f)
+            circle.snapTo(0f)
+            check.snapTo(0f)
+            burst.snapTo(0f)
+            // Let the green bar finish filling before the tick pops.
+            delay(180)
+            launch { alpha.animateTo(1f, tween(300)) }
+            launch {
+                scale.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 760,
+                        easing = CubicBezierEasing(0.34f, 1.42f, 0.64f, 1f)
+                    )
                 )
+            }
+            launch {
+                delay(120)
+                circle.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 900,
+                        easing = CubicBezierEasing(0.65f, 0f, 0.45f, 1f)
+                    )
+                )
+            }
+            launch {
+                delay(850)
+                check.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 700,
+                        easing = CubicBezierEasing(0.65f, 0f, 0.45f, 1f)
+                    )
+                )
+            }
+            launch {
+                delay(650)
+                burst.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = 1500,
+                        easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                    )
+                )
+            }
+        } else {
+            alpha.animateTo(0f, tween(250))
+            scale.snapTo(0f)
+        }
+    }
+
+    if (!visible && alpha.value <= 0.001f) return
+
+    Box(
+        modifier = modifier.size(160.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(Modifier.size(132.dp)) {
+            val radius = size.minDimension * (0.22f + 0.24f * burst.value)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Green.copy(alpha = 0.34f * alpha.value * (1f - burst.value * 0.6f)),
+                        Color.Transparent
+                    ),
+                    center = center,
+                    radius = radius
+                ),
+                radius = radius,
+                center = center
+            )
+        }
+
+        sparkles.forEach { sparkle ->
+            val dx = cos(sparkle.angle) * sparkle.distance * burst.value
+            val dy = sin(sparkle.angle) * sparkle.distance * burst.value
+            Canvas(
+                modifier = Modifier
+                    .offset { IntOffset(dx.roundToInt(), dy.roundToInt()) }
+                    .size(9.dp)
+                    .graphicsLayer {
+                        val remaining = 1f - burst.value
+                        scaleX = remaining
+                        scaleY = remaining
+                        rotationZ = 360f * burst.value
+                        this.alpha = remaining
+                    }
+            ) {
+                // Four-point star spark with a soft round core.
+                val stroke = size.minDimension * 0.16f
+                val c = center
+                drawLine(
+                    sparkle.color,
+                    Offset(c.x, 0f),
+                    Offset(c.x, size.height),
+                    stroke,
+                    StrokeCap.Round
+                )
+                drawLine(
+                    sparkle.color,
+                    Offset(0f, c.y),
+                    Offset(size.width, c.y),
+                    stroke,
+                    StrokeCap.Round
+                )
+                drawCircle(sparkle.color, radius = size.minDimension * 0.16f, center = c)
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .size(60.dp)
+                .graphicsLayer {
+                    scaleX = scale.value
+                    scaleY = scale.value
+                    this.alpha = alpha.value
+                }
+                .shadow(
+                    elevation = 32.dp,
+                    shape = CircleShape,
+                    ambientColor = Green,
+                    spotColor = Green
+                )
+                .clip(CircleShape)
+                .background(Green),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(32.dp)) {
+                val s = size.width / 52f
+                val center = Offset(26f * s, 26f * s)
+
+                drawArc(
+                    color = Color.White,
+                    startAngle = 0f,
+                    sweepAngle = 360f * circle.value,
+                    useCenter = false,
+                    topLeft = Offset(center.x - 25f * s, center.y - 25f * s),
+                    size = Size(50f * s, 50f * s),
+                    style = Stroke(width = 3f * s)
+                )
+
+                if (check.value > 0f) {
+                    val path = Path().apply {
+                        moveTo(14.1f * s, 27.2f * s)
+                        lineTo(21.2f * s, 34.4f * s)
+                        lineTo(37.9f * s, 17.6f * s)
+                    }
+                    val measure = PathMeasure().apply { setPath(path, false) }
+                    val segment = Path()
+                    measure.getSegment(
+                        startDistance = 0f,
+                        stopDistance = measure.length * check.value,
+                        destination = segment,
+                        startWithMoveTo = true
+                    )
+                    drawPath(
+                        path = segment,
+                        color = Color.White,
+                        style = Stroke(
+                            width = 4f * s,
+                            cap = StrokeCap.Round,
+                            join = StrokeJoin.Round
+                        )
+                    )
+                }
             }
         }
     }
@@ -1062,25 +1315,5 @@ private fun CloseGlyph(color: Color, modifier: Modifier = Modifier) {
             stroke,
             StrokeCap.Round
         )
-    }
-}
-
-@Composable
-private fun ArrowGlyph(color: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier) {
-        val s = size.minDimension / 24f
-        val stroke = Stroke(
-            width = 2.2f * s,
-            cap = StrokeCap.Round,
-            join = StrokeJoin.Round
-        )
-        drawLine(color, Offset(12f * s, 4f * s), Offset(12f * s, 16f * s), 2.2f * s, StrokeCap.Round)
-        drawLine(color, Offset(7f * s, 11f * s), Offset(12f * s, 16f * s), 2.2f * s, StrokeCap.Round)
-        drawLine(color, Offset(12f * s, 16f * s), Offset(17f * s, 11f * s), 2.2f * s, StrokeCap.Round)
-        val tray = Path().apply {
-            moveTo(5f * s, 19f * s)
-            lineTo(19f * s, 19f * s)
-        }
-        drawPath(tray, color, style = stroke)
     }
 }
