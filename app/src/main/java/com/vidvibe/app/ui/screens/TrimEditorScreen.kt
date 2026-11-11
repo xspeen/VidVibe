@@ -37,7 +37,7 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.RangeSlider
-import androidx.compose.material3.RangeSliderDefaults
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -647,7 +647,7 @@ private fun TrimControls(
             onValueChange = onRangeChange,
             valueRange = 0f..durationSeconds,
             enabled = !exporting,
-            colors = RangeSliderDefaults.colors(
+            colors = SliderDefaults.colors(
                 thumbColor = Color.White,
                 activeTrackColor = TrimGreen,
                 inactiveTrackColor = Color.White.copy(alpha = 0.16f)

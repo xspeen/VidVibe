@@ -133,7 +133,7 @@ object Tools {
             val code = http?.responseCode ?: 200
             if (code in 300..399) {
                 val location = http?.getHeaderField("Location") ?: break
-                current = current.resolve(location).toURL()
+                current = current.toURI().resolve(location).toURL()
                 redirects++
                 continue
             }

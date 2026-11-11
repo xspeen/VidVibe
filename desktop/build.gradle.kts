@@ -27,7 +27,7 @@ fun downloadFile(url: String, target: File) {
         val code = (connection as? java.net.HttpURLConnection)?.responseCode ?: 200
         if (code in 300..399) {
             val location = connection.getHeaderField("Location") ?: break
-            current = current.resolve(location).toURL()
+            current = current.toURI().resolve(location).toURL()
             redirects++
             continue
         }
