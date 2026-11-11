@@ -232,9 +232,9 @@ fun ShareSheet(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // VidVibe's own icon, so the drawer is clearly ours.
-                    Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher),
-                        contentDescription = null,
+                    // Adaptive launcher icons are XML, which painterResource
+                    // cannot decode, so compose the two bitmap layers instead.
+                    Box(
                         modifier = Modifier
                             .size(34.dp)
                             .clip(RoundedCornerShape(10.dp))
@@ -242,8 +242,20 @@ fun ShareSheet(
                                 1.dp,
                                 Color.White.copy(alpha = 0.22f),
                                 RoundedCornerShape(10.dp)
-                            )
-                    )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_launcher_background),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
 
                     Spacer(Modifier.width(10.dp))
 
