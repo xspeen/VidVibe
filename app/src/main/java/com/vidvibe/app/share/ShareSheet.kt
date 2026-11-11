@@ -77,6 +77,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -459,18 +460,28 @@ fun ShareSheet(
 
                     Spacer(Modifier.height(8.dp))
 
-                    Text(
-                        text = when {
-                            running -> (state as DownloadState.Running).status
-                            complete -> "Saved to your gallery"
-                            else -> "Saves straight to your gallery"
-                        },
-                        fontSize = 8.5.sp,
-                        color = Color.White.copy(alpha = 0.32f * captionAlpha),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (running) {
+                            AnalyzingGlyph(
+                                color = Color.White.copy(alpha = 0.78f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            Text(
+                                text = if (complete) "Saved to your gallery"
+                                else "Saves straight to your gallery",
+                                fontSize = 8.5.sp,
+                                color = Color.White.copy(alpha = 0.32f * captionAlpha),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -808,6 +819,85 @@ private fun DownloadWindow(
             modifier = Modifier.align(Alignment.Center)
         )
     }
+}
+
+/**
+ * Small analyzing glyph under the loader. The image icon is wiped by a bright
+ * pass while a slim scan bar sweeps across it, then both mirror back and pause
+ * for 200 ms, matching the analyzer reference animation.
+ */
+@Composable
+private fun AnalyzingGlyph(
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val phase = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        val ease = CubicBezierEasing(0.175f, 0.885f, 0.32f, 1f)
+        while (true) {
+            phase.animateTo(1f, tween(1500, easing = ease))
+            phase.animateTo(0f, tween(1000, easing = ease))
+            delay(200)
+        }
+    }
+
+    Canvas(modifier) {
+        val u = size.minDimension / 24f
+        drawAnalyzingGlyph(color.copy(alpha = 0.22f), u)
+
+        clipRect(right = size.width * phase.value) {
+            drawAnalyzingGlyph(color.copy(alpha = 0.92f), u)
+        }
+
+        val barWidth = size.width * 0.07f
+        val barX = barWidth * (14f - 14.8f * phase.value)
+        drawRoundRect(
+            color = color.copy(alpha = 0.92f),
+            topLeft = Offset(barX, 0f),
+            size = Size(barWidth, size.height),
+            cornerRadius = CornerRadius(barWidth / 2f)
+        )
+    }
+}
+
+private fun DrawScope.drawAnalyzingGlyph(color: Color, u: Float) {
+    val stroke = 1.5f * u
+
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(2f * u, 3f * u),
+        size = Size(20f * u, 18f * u),
+        cornerRadius = CornerRadius(2.2f * u, 2.2f * u),
+        style = Stroke(stroke)
+    )
+
+    val peaks = Path().apply {
+        moveTo(4.27f * u, 20.73f * u)
+        lineTo(10.87f * u, 14.13f * u)
+        quadraticBezierTo(12f * u, 13.05f * u, 13.13f * u, 14.13f * u)
+        lineTo(19.68f * u, 20.68f * u)
+        moveTo(14f * u, 15f * u)
+        lineTo(16.87f * u, 12.13f * u)
+        quadraticBezierTo(18f * u, 11.05f * u, 19.13f * u, 12.13f * u)
+        lineTo(22f * u, 15f * u)
+    }
+    drawPath(
+        path = peaks,
+        color = color,
+        style = Stroke(
+            width = stroke,
+            cap = StrokeCap.Round,
+            join = StrokeJoin.Round
+        )
+    )
+
+    drawCircle(
+        color = color,
+        radius = 2f * u,
+        center = Offset(8f * u, 9f * u),
+        style = Stroke(stroke)
+    )
 }
 
 private data class Sparkle(
