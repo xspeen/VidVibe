@@ -28,7 +28,8 @@ data class AppSettings(
     val backgroundLook: String = "midnight",
     val textColor: String = "white",
     val glassColor: String = "default",
-    val appTheme: String = "dark"
+    val appTheme: String = "dark",
+    val notchEnabled: Boolean = false
 )
 
 class SettingsStore(private val context: Context) {
@@ -46,6 +47,7 @@ class SettingsStore(private val context: Context) {
         val textColor = stringPreferencesKey("text_color")
         val glassColor = stringPreferencesKey("glass_color")
         val appTheme = stringPreferencesKey("app_theme")
+        val notchEnabled = booleanPreferencesKey("notch_enabled")
     }
 
     val settings: Flow<AppSettings> = context.vidVibeDataStore.data.map { preferences ->
@@ -61,7 +63,8 @@ class SettingsStore(private val context: Context) {
             backgroundLook = preferences[Keys.backgroundLook] ?: "midnight",
             textColor = preferences[Keys.textColor] ?: "white",
             glassColor = preferences[Keys.glassColor] ?: "default",
-            appTheme = preferences[Keys.appTheme] ?: "dark"
+            appTheme = preferences[Keys.appTheme] ?: "dark",
+            notchEnabled = preferences[Keys.notchEnabled] ?: false
         )
     }
 
@@ -87,6 +90,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setOnboardingSeen(seen: Boolean) {
         context.vidVibeDataStore.edit { it[Keys.onboardingSeen] = seen }
+    }
+
+    suspend fun setNotchEnabled(enabled: Boolean) {
+        context.vidVibeDataStore.edit { it[Keys.notchEnabled] = enabled }
     }
 
     suspend fun setCustomization(

@@ -36,6 +36,7 @@ import com.vidvibe.app.ui.VidVibeApp
 import com.vidvibe.app.ui.components.PermissionScreen
 import com.vidvibe.app.ui.screens.AppLockScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
+import com.vidvibe.app.overlay.NotchOverlayService
 import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
@@ -53,6 +54,8 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        handleOverlayIntent(intent)
 
         // Prevent screenshots, screen recording, and the recent-apps thumbnail.
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -126,6 +129,15 @@ class MainActivity : FragmentActivity() {
                 }
             }
 
+            LaunchedEffect(settingsLoaded, settings.notchEnabled) {
+                if (!settingsLoaded) return@LaunchedEffect
+                if (settings.notchEnabled && NotchOverlayService.hasPermission(this@MainActivity)) {
+                    NotchOverlayService.start(this@MainActivity)
+                } else {
+                    NotchOverlayService.stop(this@MainActivity)
+                }
+            }
+
             val animationStyle = AnimationStyle.from(settings.animationStyle)
             val appFont = AppFont.from(settings.appFont)
             val backgroundLook = BackgroundLook.from(settings.backgroundLook)
@@ -169,6 +181,24 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOverlayIntent(intent)
+    }
+
+    private fun handleOverlayIntent(intent: Intent?) {
+        intent ?: return
+        if (intent.getBooleanExtra(NotchOverlayService.EXTRA_PASTE_LINK, false)) {
+            viewModel.requestPaste()
+        } else {
+            val tab = intent.getIntExtra(NotchOverlayService.EXTRA_OPEN_TAB, -1)
+            if (tab in 0..3) viewModel.requestTab(tab)
+        }
+        intent.removeExtra(NotchOverlayService.EXTRA_PASTE_LINK)
+        intent.removeExtra(NotchOverlayService.EXTRA_OPEN_TAB)
     }
 
     private fun requiredMediaPermissions(): Array<String> {

@@ -13,6 +13,9 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name=".VidVibeApplication"
@@ -27,6 +30,15 @@
         android:theme="@style/Theme.VidVibe"
         android:usesCleartextTraffic="true"
         tools:targetApi="35">
+
+        <service
+            android:name=".overlay.NotchOverlayService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Floating notch navigation overlay with quick paste and tab shortcuts, enabled by the user" />
+        </service>
 
         <activity
             android:name=".MainActivity"

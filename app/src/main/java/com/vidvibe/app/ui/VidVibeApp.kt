@@ -5,6 +5,7 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -26,9 +28,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.formatFileSize
+import com.vidvibe.app.overlay.NotchOverlayService
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
 import com.vidvibe.app.ui.components.CustomBottomNav
 import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
@@ -52,6 +58,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
     val trash by viewModel.trash.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val downloadState by viewModel.downloadState.collectAsStateWithLifecycle()
+    val pendingTab by viewModel.pendingTab.collectAsStateWithLifecycle()
+    val pasteToken by viewModel.pasteToken.collectAsStateWithLifecycle()
 
     // 0 = Local, 1 = Downloader, 2 = Trash, 3 = Me
     var selectedTab by rememberSaveable { mutableStateOf(0) }
@@ -77,6 +85,61 @@ fun VidVibeApp(viewModel: MainViewModel) {
             viewModel.onSystemDeleteConfirmed()
         } else {
             viewModel.onSystemDeleteCancelled()
+        }
+    }
+
+    var overlayGranted by remember {
+        mutableStateOf(NotchOverlayService.hasPermission(context))
+    }
+    var pendingNotchEnable by remember { mutableStateOf(false) }
+
+    val overlayLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        overlayGranted = NotchOverlayService.hasPermission(context)
+        if (overlayGranted && pendingNotchEnable) {
+            viewModel.setNotchEnabled(true)
+        }
+        pendingNotchEnable = false
+    }
+
+    fun openOverlaySettings() {
+        val intent = Intent(
+            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+            Uri.fromParts("package", context.packageName, null)
+        )
+        runCatching { overlayLauncher.launch(intent) }
+            .onFailure { showToast("Overlay permission is not available on this device.") }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                overlayGranted = NotchOverlayService.hasPermission(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    LaunchedEffect(settings.notchEnabled, overlayGranted) {
+        if (!overlayGranted) {
+            if (settings.notchEnabled) viewModel.setNotchEnabled(false)
+            NotchOverlayService.stop(context)
+            return@LaunchedEffect
+        }
+        if (settings.notchEnabled) {
+            NotchOverlayService.start(context)
+        } else {
+            NotchOverlayService.stop(context)
+        }
+    }
+
+    LaunchedEffect(pendingTab) {
+        pendingTab?.let { tab ->
+            selectedTab = tab
+            viewModel.consumePendingTab()
         }
     }
 
@@ -127,6 +190,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
                 onResetDownload = viewModel::resetDownload,
                 onWifiOnlyChange = viewModel::setWifiOnly,
                 onFullScreenChanged = { downloaderFullScreen = it },
+                pasteToken = pasteToken,
+                onPasteConsumed = viewModel::consumePaste,
                 showToast = { showToast(it) }
             )
 
@@ -151,6 +216,22 @@ fun VidVibeApp(viewModel: MainViewModel) {
             else -> MeScreen(
                 settings = settings,
                 librarySizeLabel = formatFileSize(videos.sumOf { it.sizeBytes }),
+                notchEnabled = settings.notchEnabled,
+                overlayPermissionGranted = overlayGranted,
+                onNotchEnabledChange = { enabled ->
+                    if (enabled) {
+                        if (NotchOverlayService.hasPermission(context)) {
+                            viewModel.setNotchEnabled(true)
+                        } else {
+                            pendingNotchEnable = true
+                            openOverlaySettings()
+                        }
+                    } else {
+                        viewModel.setNotchEnabled(false)
+                        NotchOverlayService.stop(context)
+                    }
+                },
+                onRequestOverlayPermission = { openOverlaySettings() },
                 onApplyCustomization = { selection ->
                     viewModel.setCustomization(
                         animationStyle = selection.animationStyle.key,

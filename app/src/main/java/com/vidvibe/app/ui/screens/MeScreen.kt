@@ -47,13 +47,20 @@ import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -128,6 +135,10 @@ private enum class ProfilePage {
 fun MeScreen(
     settings: AppSettings,
     librarySizeLabel: String,
+    notchEnabled: Boolean,
+    overlayPermissionGranted: Boolean,
+    onNotchEnabledChange: (Boolean) -> Unit,
+    onRequestOverlayPermission: () -> Unit,
     onApplyCustomization: (CustomizationSelection) -> Unit,
     onSubPageChanged: (Boolean) -> Unit,
     showToast: (String) -> Unit
@@ -174,6 +185,10 @@ fun MeScreen(
 
             ProfilePage.Settings -> AppSettingsPage(
                 settings = settings,
+                notchEnabled = notchEnabled,
+                overlayPermissionGranted = overlayPermissionGranted,
+                onNotchEnabledChange = onNotchEnabledChange,
+                onRequestOverlayPermission = onRequestOverlayPermission,
                 onBack = { page = ProfilePage.Home },
                 onApplyCustomization = onApplyCustomization,
                 showToast = showToast
@@ -308,6 +323,10 @@ private fun DownloadHistoryPage(
 @Composable
 private fun AppSettingsPage(
     settings: AppSettings,
+    notchEnabled: Boolean,
+    overlayPermissionGranted: Boolean,
+    onNotchEnabledChange: (Boolean) -> Unit,
+    onRequestOverlayPermission: () -> Unit,
     onBack: () -> Unit,
     onApplyCustomization: (CustomizationSelection) -> Unit,
     showToast: (String) -> Unit
@@ -354,6 +373,16 @@ private fun AppSettingsPage(
                     .navigationBarsPadding()
                     .padding(bottom = 100.dp)
             ) {
+                FloatingNotchGroup(
+                    enabled = notchEnabled,
+                    overlayPermissionGranted = overlayPermissionGranted,
+                    onEnabledChange = onNotchEnabledChange,
+                    onRequestPermission = onRequestOverlayPermission,
+                    glass = glass,
+                    textColor = textTone.color,
+                    fontFamily = font.family
+                )
+
                 CustomGroup(
                     icon = Icons.Outlined.AutoAwesome,
                     title = "Animation Style"
@@ -726,6 +755,246 @@ private fun GlassColorDot(
             )
             .clickable(onClick = onClick)
     )
+}
+
+@Composable
+private fun FloatingNotchGroup(
+    enabled: Boolean,
+    overlayPermissionGranted: Boolean,
+    onEnabledChange: (Boolean) -> Unit,
+    onRequestPermission: () -> Unit,
+    glass: MenuGlass,
+    textColor: Color,
+    fontFamily: FontFamily
+) {
+    val currentText = LocalAppTextColor.current
+
+    CustomGroup(
+        icon = Icons.Outlined.Smartphone,
+        title = "Floating Notch"
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = "Top-screen navigation",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = currentText
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    text = "A floating glass notch with paste-to-download and quick tab jumps.",
+                    fontSize = 11.sp,
+                    color = ProfileText2,
+                    lineHeight = 15.sp
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Switch(
+                checked = enabled,
+                onCheckedChange = onEnabledChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = ProfileBlue,
+                    uncheckedThumbColor = Color(0xFF9A9AA5),
+                    uncheckedTrackColor = Color.White.copy(alpha = 0.10f),
+                    uncheckedBorderColor = Color.White.copy(alpha = 0.16f)
+                )
+            )
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        NotchMiniPreview(
+            glass = glass,
+            textColor = textColor,
+            fontFamily = fontFamily,
+            enabled = enabled
+        )
+
+        when {
+            !overlayPermissionGranted -> {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0x22FFB020))
+                        .border(1.dp, Color(0x55FFB020), RoundedCornerShape(12.dp))
+                        .clickable(onClick = onRequestPermission)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Info,
+                        contentDescription = null,
+                        tint = Color(0xFFFFB020),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Allow display over other apps to show the notch.",
+                        fontSize = 11.sp,
+                        color = Color(0xFFFFD08A),
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.ChevronRight,
+                        contentDescription = null,
+                        tint = Color(0xFFFFD08A),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            enabled -> {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Active. Tap the notch to open the panel.",
+                    fontSize = 11.sp,
+                    color = ProfileGreen.copy(alpha = 0.90f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotchMiniPreview(
+    glass: MenuGlass,
+    textColor: Color,
+    fontFamily: FontFamily,
+    enabled: Boolean
+) {
+    val previewAlpha = if (enabled) 1f else 0.55f
+    val pillShape = RoundedCornerShape(
+        topStart = 9.dp,
+        topEnd = 9.dp,
+        bottomStart = 14.dp,
+        bottomEnd = 14.dp
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(112.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF121216), Color(0xFF08080A))
+                )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(14.dp))
+            .alpha(previewAlpha)
+            .padding(10.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(
+                modifier = Modifier
+                    .width(112.dp)
+                    .height(24.dp)
+                    .clip(pillShape)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xF20A0A0C), glass.background.copy(alpha = 0.96f))
+                        )
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.12f), pillShape)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(4.dp)
+                        .clip(CircleShape)
+                        .background(ProfileGreen)
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier = Modifier
+                        .size(9.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFF050507))
+                        .border(1.dp, Color.White.copy(alpha = 0.20f), CircleShape)
+                )
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Outlined.ChevronRight,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.55f),
+                    modifier = Modifier.size(9.dp)
+                )
+            }
+
+            Spacer(Modifier.height(7.dp))
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(glass.background.copy(alpha = 0.95f))
+                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 8.dp, vertical = 7.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Outlined.Link,
+                        contentDescription = null,
+                        tint = Color(0xFF4E9BFF),
+                        modifier = Modifier.size(10.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "Paste link to download",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        fontFamily = fontFamily,
+                        color = textColor
+                    )
+                }
+                Spacer(Modifier.height(7.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    PreviewNavItem(Icons.Outlined.VideoLibrary, "Local", textColor, fontFamily)
+                    PreviewNavItem(Icons.Outlined.Download, "Download", textColor, fontFamily)
+                    PreviewNavItem(Icons.Outlined.DeleteOutline, "Trash", textColor, fontFamily)
+                    PreviewNavItem(Icons.Outlined.PersonOutline, "Profile", textColor, fontFamily)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PreviewNavItem(
+    icon: ImageVector,
+    label: String,
+    textColor: Color,
+    fontFamily: FontFamily
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = textColor.copy(alpha = 0.85f),
+            modifier = Modifier.size(11.dp)
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            fontSize = 6.sp,
+            fontFamily = fontFamily,
+            color = textColor.copy(alpha = 0.70f)
+        )
+    }
 }
 
 @Composable

@@ -71,6 +71,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
 
+    private val _pendingTab = MutableStateFlow<Int?>(null)
+    val pendingTab: StateFlow<Int?> = _pendingTab.asStateFlow()
+
+    private val _pasteToken = MutableStateFlow(0)
+    val pasteToken: StateFlow<Int> = _pasteToken.asStateFlow()
+
+    private var pasteCounter = 0
+
     private var refreshJob: Job? = null
     private var downloadJob: Job? = null
     private var pendingPermanentDeleteIds: Set<Long> = emptySet()
@@ -235,6 +243,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setOnboardingSeen(seen: Boolean) {
         viewModelScope.launch { settingsStore.setOnboardingSeen(seen) }
+    }
+
+    fun setNotchEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setNotchEnabled(enabled) }
+    }
+
+    fun requestTab(index: Int) {
+        _pendingTab.value = index.coerceIn(0, 3)
+    }
+
+    fun consumePendingTab() {
+        _pendingTab.value = null
+    }
+
+    fun requestPaste() {
+        pasteCounter += 1
+        _pendingTab.value = 1
+        _pasteToken.value = pasteCounter
+    }
+
+    fun consumePaste() {
+        _pasteToken.value = 0
     }
 
     fun setCustomization(

@@ -81,6 +81,8 @@ fun DownloaderScreen(
     onResetDownload: () -> Unit,
     onWifiOnlyChange: (Boolean) -> Unit,
     onFullScreenChanged: (Boolean) -> Unit = {},
+    pasteToken: Int = 0,
+    onPasteConsumed: () -> Unit = {},
     showToast: (String) -> Unit
 ) {
     val background = LocalAppBackground.current
@@ -134,6 +136,27 @@ fun DownloaderScreen(
             return
         }
         openQuality()
+    }
+
+    LaunchedEffect(pasteToken) {
+        if (pasteToken != 0) {
+            // The overlay brings the activity forward; give the window time to gain
+            // focus before reading the clipboard (Android 10+ blocks background reads).
+            var pasted = clipboardText()
+            var attempts = 0
+            while (pasted.isBlank() && attempts < 6) {
+                delay(150)
+                pasted = clipboardText()
+                attempts += 1
+            }
+            if (pasted.isNotBlank()) {
+                link = pasted
+                openQuality()
+            } else {
+                showToast("Clipboard is empty. Copy a video link first.")
+            }
+            onPasteConsumed()
+        }
     }
 
     LaunchedEffect(downloadState) {
