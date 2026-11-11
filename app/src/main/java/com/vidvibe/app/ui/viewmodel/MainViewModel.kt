@@ -161,8 +161,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /**
      * Copies a user-picked Netscape cookies.txt into app storage. yt-dlp reads
-     * it for every site, which is what makes private Instagram posts and
-     * Pornhub logins reachable.
+     * it when a site demands a signed-in session, which is what makes private
+     * and login-only posts reachable.
      */
     fun importCookies(uri: Uri) {
         viewModelScope.launch {

@@ -779,7 +779,7 @@ private fun SiteLoginGroup(
                     text = if (cookiesImported) {
                         "Imported. Private and login-only videos can be fetched."
                     } else {
-                        "Not imported. Private Instagram posts and Pornhub logins need it."
+                        "Not imported. Private or login-only posts need it."
                     },
                     fontSize = 11.sp,
                     color = if (cookiesImported) ProfileGreen.copy(alpha = 0.90f) else ProfileText2,

@@ -196,77 +196,112 @@ def _cleanup_job(job_dir):
         pass
 
 
-def _friendly_error(url, error):
-    host = ""
+def _host_of(url):
     try:
         from urllib.parse import urlparse
 
-        host = (urlparse(url).hostname or "").lower()
+        return (urlparse(url).hostname or "").lower()
     except Exception:
-        pass
+        return ""
 
+
+LOGIN_TOKENS = (
+    "login required",
+    "log in",
+    "sign in",
+    "logged-in",
+    "logged in",
+    "private",
+    "premium",
+    "members only",
+    "only available for registered users",
+    "rate-limit reached",
+    "requested content is not available",
+    "authentication",
+    "cookies",
+    "account",
+    "age",
+)
+
+
+def _looks_like_login(error):
+    lower = str(error or "").lower()
+    return any(token in lower for token in LOGIN_TOKENS)
+
+
+# Sites that publish a ready video+audio file. Downloading that single file
+# avoids the on-device merge entirely, which is the fragile step.
+SINGLE_STREAM_HOSTS = (
+    "instagram",
+    "tiktok",
+    "facebook",
+    "fb.watch",
+    "twitter",
+    "x.com",
+    "threads.net",
+    "reddit",
+    "vimeo",
+    "dailymotion",
+    "twitch",
+    "snapchat",
+    "linkedin",
+    "pinterest",
+    "bilibili",
+    "rumble",
+    "odysee",
+    "pornhub",
+    "xvideos",
+    "xnxx",
+    "redtube",
+    "xhamster",
+    "spankbang",
+    "eporner",
+    "beeg",
+    "youporn",
+)
+
+
+def _prefers_single_stream(url):
+    host = _host_of(url)
+    return any(name in host for name in SINGLE_STREAM_HOSTS)
+
+
+def _friendly_error(url, error):
+    host = _host_of(url)
     detail = str(error or "").strip()
     first_line = detail.splitlines()[0] if detail else ""
-    lower = detail.lower()
+    needs_login = _looks_like_login(detail)
 
-    needs_login = any(
-        token in lower
-        for token in (
-            "login required",
-            "log in",
-            "sign in",
-            "logged-in",
-            "private",
-            "premium",
-            "only available for registered users",
-            "rate-limit reached",
-            "requested content is not available",
-            "authentication",
-            "cookies",
-            "account",
-        )
-    )
-
-    if "instagram.com" in host:
+    if "instagram" in host:
         if needs_login:
             return (
-                "Instagram blocked this post because it needs a signed-in account. "
-                "Export cookies.txt from a browser where you are logged in, import it "
-                "in Profile > App Settings, then try again."
+                "Instagram needs a signed-in session for this post. Export cookies.txt "
+                "from a browser where you are logged in, import it in Profile > App "
+                "Settings, then try again."
             )
         return (
-            "Instagram did not return this video. Public reels and posts work; private "
-            "accounts need cookies.txt imported in Profile > App Settings."
-        )
-    if "pornhub" in host:
-        if needs_login:
-            return (
-                "Pornhub asked for a signed-in account for this video. Import a "
-                "cookies.txt exported from a logged-in browser in Profile > App Settings."
-            )
-        return (
-            "Pornhub did not return this video. Try the direct watch link; age-gated or "
-            "premium videos need cookies.txt."
+            "Instagram did not return this video. Public reels and posts download "
+            "directly; private accounts need cookies.txt in Profile > App Settings."
         )
     if "youtube.com" in host or "youtu.be" in host:
         return (
             "YouTube did not provide a downloadable stream. The video may be private, "
             "age-restricted, or region-locked. Try another public link."
         )
-    if "tiktok.com" in host:
+    if "tiktok" in host:
         return (
-            "TikTok did not provide this video. Make sure the post is public and the "
-            "link opens in a browser."
+            "TikTok did not return this video. Open the post in a browser, copy the "
+            "link, and try again."
         )
-    if "facebook.com" in host or "fb.watch" in host:
+    if "facebook" in host or "fb.watch" in host:
         return (
-            "Facebook did not provide this video. Public posts work best; private or "
-            "group posts need cookies.txt."
+            "Facebook did not return this video. Public posts work best; private or "
+            "group posts need cookies.txt in Profile > App Settings."
         )
     if needs_login:
         return (
-            "This site asked for a signed-in account. Import a cookies.txt exported "
-            "from a logged-in browser in Profile > App Settings."
+            "This site asked for a signed-in session. Export a cookies.txt from a "
+            "logged-in browser, import it in Profile > App Settings, then try again."
         )
     if first_line:
         return "This link could not be downloaded. %s" % first_line[:220]
@@ -370,6 +405,105 @@ def _try_muxed(
     return _single_result(job_dir, path, info)
 
 
+def _discard_job(job_dir):
+    if job_dir and os.path.isdir(job_dir):
+        shutil.rmtree(job_dir, ignore_errors=True)
+
+
+def _new_job_dir(output_directory):
+    path = os.path.join(output_directory, ".job-" + uuid.uuid4().hex)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+def _download_any(url, max_height, output_directory, progress_callback, cookies_path):
+    """One full attempt. Every stage gets a clean directory, so a failed
+    stage can never leave files that confuse the next one."""
+    single_first = _prefers_single_stream(url)
+
+    def attempt_muxed(height, label, extractor_args=None):
+        job_dir = _new_job_dir(output_directory)
+        try:
+            return _try_muxed(
+                url,
+                height,
+                job_dir,
+                output_directory,
+                progress_callback,
+                extractor_args=extractor_args,
+                start_percent=1,
+                end_percent=97,
+                label=label,
+                cookies_path=cookies_path,
+            )
+        except Exception:
+            _discard_job(job_dir)
+            raise
+
+    def attempt_split():
+        job_dir = _new_job_dir(output_directory)
+        try:
+            return _try_split(
+                url,
+                max_height,
+                job_dir,
+                output_directory,
+                progress_callback,
+                cookies_path=cookies_path,
+            )
+        except Exception:
+            _discard_job(job_dir)
+            raise
+
+    stages = []
+    if single_first:
+        stages = [
+            lambda: attempt_muxed(max_height, "Downloading video..."),
+            attempt_split,
+            lambda: attempt_muxed(
+                max_height,
+                "Trying another stream...",
+                {"youtube": {"player_client": ["android", "android_vr"]}},
+            ),
+            lambda: attempt_muxed(0, "Trying the best available stream..."),
+        ]
+    else:
+        stages = [
+            attempt_split,
+            lambda: attempt_muxed(max_height, "Trying a single-stream download..."),
+            lambda: attempt_muxed(
+                max_height,
+                "Trying the mobile stream...",
+                {"youtube": {"player_client": ["android", "android_vr"]}},
+            ),
+            lambda: attempt_muxed(0, "Trying the best available stream..."),
+        ]
+
+    first_error = None
+    for stage in stages:
+        try:
+            return stage()
+        except Exception as error:
+            if first_error is None:
+                first_error = error
+    raise RuntimeError(str(first_error or "The download failed."))
+
+
+def _run_with_cookies(operation, cookies_path):
+    """Anonymous first, cookies only when the site actually demands a login.
+
+    A stale or half-exported cookie file used to break sites that work fine
+    without one, so it is never sent on the first attempt.
+    """
+    cookies = cookies_path if cookies_path and os.path.isfile(cookies_path) else ""
+    try:
+        return operation("")
+    except Exception as error:
+        if cookies and _looks_like_login(error):
+            return operation(cookies)
+        raise
+
+
 def download_video(url, quality_height, output_directory, progress_callback, cookies_path=""):
     """Called from Kotlin through Chaquopy.
 
@@ -381,86 +515,24 @@ def download_video(url, quality_height, output_directory, progress_callback, coo
         raise ValueError("Paste a link before starting a download.")
 
     os.makedirs(output_directory, exist_ok=True)
-    job_dir = os.path.join(output_directory, ".job-" + uuid.uuid4().hex)
-    os.makedirs(job_dir, exist_ok=True)
     max_height = int(quality_height or 0)
-
     _notify(progress_callback, 0, "Preparing download...")
 
-    split_error = None
-    try:
-        result = _try_split(
-            clean_url,
-            max_height,
-            job_dir,
-            output_directory,
-            progress_callback,
-            cookies_path=cookies_path,
+    def run(cookie_path):
+        return json.dumps(
+            _download_any(
+                clean_url,
+                max_height,
+                output_directory,
+                progress_callback,
+                cookie_path,
+            )
         )
-        _notify(progress_callback, 98, "Merging video and audio...")
-        return json.dumps(result)
+
+    try:
+        return _run_with_cookies(run, cookies_path)
     except Exception as error:
-        split_error = error
-        # Remove any partial split streams before trying a progressive file.
-        for name in os.listdir(job_dir):
-            if name.startswith(("video", "audio")):
-                run_catching = os.path.join(job_dir, name)
-                try:
-                    os.remove(run_catching)
-                except Exception:
-                    pass
-
-    # Progressive (video+audio) fallback with the default clients.
-    _notify(progress_callback, 1, "Trying a single-stream download...")
-    try:
-        result = _try_muxed(
-            clean_url,
-            max_height,
-            job_dir,
-            output_directory,
-            progress_callback,
-            cookies_path=cookies_path,
-        )
-        return json.dumps(result)
-    except Exception:
-        pass
-
-    # Some YouTube videos only expose a progressive stream through the
-    # Android player client.
-    try:
-        result = _try_muxed(
-            clean_url,
-            max_height,
-            job_dir,
-            output_directory,
-            progress_callback,
-            extractor_args={"youtube": {"player_client": ["android", "android_vr"]}},
-            start_percent=1,
-            end_percent=97,
-            label="Trying the mobile stream...",
-            cookies_path=cookies_path,
-        )
-        return json.dumps(result)
-    except Exception:
-        pass
-
-    # Last resort: let yt-dlp pick anything usable, without a quality ceiling.
-    try:
-        result = _try_muxed(
-            clean_url,
-            0,
-            job_dir,
-            output_directory,
-            progress_callback,
-            start_percent=1,
-            end_percent=97,
-            label="Trying the best available stream...",
-            cookies_path=cookies_path,
-        )
-        return json.dumps(result)
-    except Exception:
-        _cleanup_job(job_dir)
-        raise RuntimeError(_friendly_error(clean_url, split_error))
+        raise RuntimeError(_friendly_error(clean_url, error))
 
 
 def download_fallback(url, quality_height, output_directory, progress_callback, cookies_path=""):
@@ -470,16 +542,11 @@ def download_fallback(url, quality_height, output_directory, progress_callback, 
         raise ValueError("Paste a link before starting a download.")
 
     os.makedirs(output_directory, exist_ok=True)
-    job_dir = os.path.join(output_directory, ".job-" + uuid.uuid4().hex)
-    os.makedirs(job_dir, exist_ok=True)
     max_height = int(quality_height or 0)
+    _notify(progress_callback, 1, "Downloading a single-stream version...")
 
-    _notify(progress_callback, 1, "Downloading a single stream...")
-    last_error = None
-    for extractor_args in (
-        None,
-        {"youtube": {"player_client": ["android", "android_vr"]}},
-    ):
+    def run(cookie_path):
+        job_dir = _new_job_dir(output_directory)
         try:
             result = _try_muxed(
                 clean_url,
@@ -487,34 +554,17 @@ def download_fallback(url, quality_height, output_directory, progress_callback, 
                 job_dir,
                 output_directory,
                 progress_callback,
-                extractor_args=extractor_args,
                 start_percent=1,
                 end_percent=98,
                 label="Downloading video...",
-                cookies_path=cookies_path,
+                cookies_path=cookie_path,
             )
             return json.dumps(result)
-        except Exception as error:
-            last_error = error
-            for name in os.listdir(job_dir):
-                try:
-                    os.remove(os.path.join(job_dir, name))
-                except Exception:
-                    pass
+        except Exception:
+            _discard_job(job_dir)
+            raise
 
     try:
-        result = _try_muxed(
-            clean_url,
-            0,
-            job_dir,
-            output_directory,
-            progress_callback,
-            start_percent=1,
-            end_percent=98,
-            label="Downloading video...",
-            cookies_path=cookies_path,
-        )
-        return json.dumps(result)
-    except Exception:
-        _cleanup_job(job_dir)
-        raise RuntimeError(_friendly_error(clean_url, last_error))
+        return _run_with_cookies(run, cookies_path)
+    except Exception as error:
+        raise RuntimeError(_friendly_error(clean_url, error))
