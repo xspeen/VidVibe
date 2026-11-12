@@ -137,13 +137,11 @@ jobs:
 
             Built automatically by GitHub Actions from the source at this tag.
 
-            What's new in 2.8.2:
-            - Removed the site-login section and the appearance preview from App Settings
-            - Removed the app lock screen and the biometric permission
-            - Removed the player tools / edit drawer and the trim editor
-            - Removed the landscape side navigation rail; the app now stays in portrait
-            - Removed the first-run notification permission screen
-            - Downloads start immediately with no notification prompt or extra setup
+            What's new in 2.8.3:
+            - Share-sheet download drawer restyled in claymorphism: opaque matte surfaces, soft raised edges and no liquid glass
+            - Drag knob now tracks the finger without the one-frame jump and settles with a short, predictable ease
+            - Quality chip, link field, download trough and success tick all use the same clay surface language
+            - Drawer opens and exits faster; the success state no longer sits in slow motion
 
             Assets:
             - `app-release.apk` - optimized universal Android release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a, armeabi-v7a, and x86_64 native libraries)

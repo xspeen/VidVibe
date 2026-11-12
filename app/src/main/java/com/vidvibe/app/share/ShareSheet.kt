@@ -5,13 +5,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,7 +18,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -63,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -70,6 +68,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
@@ -90,11 +89,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vidvibe.app.R
-import com.vidvibe.app.ui.theme.LocalMenuPalette
 import com.vidvibe.app.ui.viewmodel.DownloadState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -114,8 +113,150 @@ private val qualities = listOf(
     QualityChoice(360, "360p")
 )
 
-private val CardShape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
-private val Green = Color(0xFF30D158)
+private val CardShape = RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp)
+private val Green = Color(0xFF3DDC84)
+
+// Claymorphism palette: opaque, matte surfaces with a soft light edge on the
+// top-left and a soft dark edge on the bottom-right. No glass, no blur, no
+// translucent panels.
+private val ClayBase = Color(0xFF24212A)
+private val ClayRaised = Color(0xFF302C38)
+private val ClayRaisedBright = Color(0xFF3A3544)
+private val ClaySunken = Color(0xFF19171E)
+private val ClayHighlight = Color(0xFFFFF4E6)
+private val ClayShadow = Color(0xFF0A080D)
+private val ClayText = Color(0xFFF6F0E8)
+private val ClayMuted = Color(0xFFA9A1B4)
+private val ClayAccent = Color(0xFF3DDC84)
+
+/**
+ * Raised clay surface: solid fill, outer drop shadow and an inner light-to-dark
+ * gradient that makes the shape look pressed from soft clay.
+ */
+private fun Modifier.clayRaised(
+    shape: Shape,
+    color: Color = ClayRaised,
+    cornerRadius: Dp = 16.dp,
+    elevation: Dp = 10.dp,
+    shadowColor: Color = ClayShadow
+): Modifier = this
+    .shadow(
+        elevation = elevation,
+        shape = shape,
+        clip = false,
+        ambientColor = shadowColor,
+        spotColor = shadowColor
+    )
+    .clip(shape)
+    .background(color)
+    .drawBehind {
+        val radius = cornerRadius.toPx()
+        drawRoundRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    ClayHighlight.copy(alpha = 0.16f),
+                    Color.Transparent,
+                    ClayShadow.copy(alpha = 0.24f)
+                ),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            ),
+            cornerRadius = CornerRadius(radius, radius)
+        )
+        drawRoundRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    ClayHighlight.copy(alpha = 0.44f),
+                    Color.Transparent,
+                    ClayShadow.copy(alpha = 0.38f)
+                ),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            ),
+            cornerRadius = CornerRadius(radius, radius),
+            style = Stroke(width = 1.2.dp.toPx())
+        )
+    }
+
+/** Round clay knob, used by the drag handle and the success tick. */
+private fun Modifier.clayCircle(
+    color: Color = ClayAccent,
+    elevation: Dp = 12.dp,
+    shadowColor: Color = ClayShadow
+): Modifier = this
+    .shadow(
+        elevation = elevation,
+        shape = CircleShape,
+        clip = false,
+        ambientColor = shadowColor,
+        spotColor = shadowColor
+    )
+    .clip(CircleShape)
+    .background(color)
+    .drawBehind {
+        drawCircle(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    ClayHighlight.copy(alpha = 0.26f),
+                    Color.Transparent,
+                    ClayShadow.copy(alpha = 0.28f)
+                ),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            ),
+            radius = size.minDimension / 2f
+        )
+        drawCircle(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    ClayHighlight.copy(alpha = 0.55f),
+                    Color.Transparent,
+                    ClayShadow.copy(alpha = 0.45f)
+                ),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            ),
+            radius = size.minDimension / 2f,
+            style = Stroke(width = 1.4.dp.toPx())
+        )
+    }
+
+/** Recessed clay well for the link field, quality track and download trough. */
+private fun Modifier.clayInset(
+    shape: Shape,
+    color: Color = ClaySunken,
+    cornerRadius: Dp = 14.dp
+): Modifier = this
+    .clip(shape)
+    .background(color)
+    .drawBehind {
+        val radius = cornerRadius.toPx()
+        drawRoundRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    ClayShadow.copy(alpha = 0.50f),
+                    Color.Transparent,
+                    ClayHighlight.copy(alpha = 0.08f)
+                ),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            ),
+            cornerRadius = CornerRadius(radius, radius)
+        )
+        drawRoundRect(
+            brush = Brush.linearGradient(
+                colors = listOf(
+                    ClayShadow.copy(alpha = 0.55f),
+                    Color.Transparent,
+                    ClayHighlight.copy(alpha = 0.20f)
+                ),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            ),
+            cornerRadius = CornerRadius(radius, radius),
+            style = Stroke(width = 1.1.dp.toPx())
+        )
+    }
 
 /** Brand of the shared link, detected from the URL host. */
 private enum class Platform(val label: String) {
@@ -159,7 +300,6 @@ fun ShareSheet(
     onCancel: () -> Unit,
     onSaved: () -> Unit
 ) {
-    val palette = LocalMenuPalette.current
     val haptics = LocalHapticFeedback.current
     val scroll = rememberScrollState()
 
@@ -185,29 +325,28 @@ fun ShareSheet(
     LaunchedEffect(closing) {
         if (closing) {
             shown = false
-            delay(700)
+            delay(300)
             onCancel()
         }
     }
     LaunchedEffect(complete) {
         if (complete) {
-            // Hold the success tick long enough to read: sparkles, glow and
-            // check draw slowly, then the drawer slides down in slow motion.
-            delay(3000)
+            // Hold the tick long enough to register, then get out of the way.
+            delay(1800)
             shown = false
-            delay(940)
+            delay(420)
             onSaved()
         }
     }
 
     val scrim by animateFloatAsState(
-        targetValue = if (shown) 0.62f else 0f,
-        animationSpec = tween(420),
+        targetValue = if (shown) 0.58f else 0f,
+        animationSpec = tween(260),
         label = "scrim"
     )
     val cardScale by animateFloatAsState(
-        targetValue = if (shown) 1f else 0.95f,
-        animationSpec = tween(380, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)),
+        targetValue = if (shown) 1f else 0.96f,
+        animationSpec = tween(240, easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)),
         label = "card-scale"
     )
 
@@ -217,7 +356,7 @@ fun ShareSheet(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = scrim))
+                .background(Color(0xFF0B0910).copy(alpha = scrim))
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -230,17 +369,17 @@ fun ShareSheet(
             enter = slideInVertically(
                 initialOffsetY = { it },
                 animationSpec = tween(
-                    durationMillis = 400,
-                    easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                    durationMillis = 340,
+                    easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
                 )
-            ) + fadeIn(tween(200)),
+            ) + fadeIn(tween(180)),
             exit = slideOutVertically(
                 targetOffsetY = { it },
                 animationSpec = tween(
-                    durationMillis = 900,
-                    easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f)
+                    durationMillis = 300,
+                    easing = CubicBezierEasing(0.3f, 0f, 0.2f, 1f)
                 )
-            ) + fadeOut(tween(760)),
+            ) + fadeOut(tween(220)),
             modifier = Modifier.align(Alignment.BottomCenter)
         ) {
             Box(
@@ -253,20 +392,11 @@ fun ShareSheet(
                         scaleY = cardScale
                         transformOrigin = TransformOrigin(0.5f, 1f)
                     }
-                    .clip(CardShape)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                palette.background,
-                                palette.background.copy(alpha = 0.97f),
-                                Color(0xF50A0A0C)
-                            )
-                        )
-                    )
-                    .border(
-                        1.dp,
-                        palette.highlight.copy(alpha = 0.26f),
-                        CardShape
+                    .clayRaised(
+                        shape = CardShape,
+                        color = ClayBase,
+                        cornerRadius = 34.dp,
+                        elevation = 26.dp
                     )
             ) {
                 Column(
@@ -280,10 +410,14 @@ fun ShareSheet(
                     Box(
                         modifier = Modifier
                             .align(Alignment.CenterHorizontally)
-                            .width(38.dp)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .background(Color.White.copy(alpha = 0.20f))
+                            .width(44.dp)
+                            .height(5.dp)
+                            .clayRaised(
+                                shape = RoundedCornerShape(3.dp),
+                                color = ClayRaisedBright,
+                                cornerRadius = 3.dp,
+                                elevation = 4.dp
+                            )
                     )
 
                     Spacer(Modifier.height(14.dp))
@@ -297,12 +431,12 @@ fun ShareSheet(
                         // cannot decode, so compose the two bitmap layers instead.
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .border(
-                                    1.dp,
-                                    Color.White.copy(alpha = 0.22f),
-                                    RoundedCornerShape(10.dp)
+                                .size(36.dp)
+                                .clayRaised(
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = ClayRaised,
+                                    cornerRadius = 12.dp,
+                                    elevation = 6.dp
                                 ),
                             contentAlignment = Alignment.Center
                         ) {
@@ -325,7 +459,7 @@ fun ShareSheet(
                                 text = "Save with VidVibe",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                color = ClayText
                             )
                             Spacer(Modifier.height(3.dp))
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -335,7 +469,7 @@ fun ShareSheet(
                                     text = platform.label,
                                     fontSize = 9.5.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = Color.White.copy(alpha = 0.66f)
+                                    color = ClayMuted
                                 )
                             }
                         }
@@ -344,13 +478,12 @@ fun ShareSheet(
 
                         Box(
                             modifier = Modifier
-                                .size(26.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White.copy(alpha = 0.08f))
-                                .border(
-                                    1.dp,
-                                    Color.White.copy(alpha = 0.14f),
-                                    RoundedCornerShape(8.dp)
+                                .size(30.dp)
+                                .clayRaised(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = ClayRaised,
+                                    cornerRadius = 10.dp,
+                                    elevation = 5.dp
                                 )
                                 .clickable(
                                     interactionSource = remember { MutableInteractionSource() },
@@ -360,7 +493,7 @@ fun ShareSheet(
                             contentAlignment = Alignment.Center
                         ) {
                             CloseGlyph(
-                                color = Color.White.copy(alpha = 0.70f),
+                                color = ClayMuted,
                                 modifier = Modifier.size(11.dp)
                             )
                         }
@@ -371,14 +504,12 @@ fun ShareSheet(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.06f))
-                            .border(
-                                1.dp,
-                                Color.White.copy(alpha = 0.10f),
-                                RoundedCornerShape(10.dp)
+                            .clayInset(
+                                shape = RoundedCornerShape(14.dp),
+                                color = ClaySunken,
+                                cornerRadius = 14.dp
                             )
-                            .padding(horizontal = 10.dp, vertical = 9.dp)
+                            .padding(horizontal = 12.dp, vertical = 11.dp)
                     ) {
                         BasicTextField(
                             value = link,
@@ -386,18 +517,18 @@ fun ShareSheet(
                             singleLine = true,
                             enabled = !running && !complete,
                             textStyle = TextStyle(
-                                color = Color.White.copy(alpha = 0.90f),
+                                color = ClayText,
                                 fontSize = 10.5.sp
                             ),
                             cursorBrush = Brush.verticalGradient(
-                                listOf(Color.White, Color.White)
+                                listOf(ClayAccent, ClayAccent)
                             ),
                             decorationBox = { inner ->
                                 if (link.isBlank()) {
                                     Text(
                                         text = "Paste a video link",
                                         fontSize = 10.5.sp,
-                                        color = Color.White.copy(alpha = 0.36f)
+                                        color = ClayMuted.copy(alpha = 0.72f)
                                     )
                                 }
                                 inner()
@@ -413,7 +544,7 @@ fun ShareSheet(
                         fontSize = 8.5.sp,
                         fontWeight = FontWeight.SemiBold,
                         letterSpacing = 1.2.sp,
-                        color = Color.White.copy(alpha = 0.42f)
+                        color = ClayMuted.copy(alpha = 0.78f)
                     )
 
                     Spacer(Modifier.height(7.dp))
@@ -442,7 +573,7 @@ fun ShareSheet(
                             text = state.message,
                             fontSize = 10.sp,
                             lineHeight = 14.sp,
-                            color = Color(0xFFFF8A8E)
+                            color = Color(0xFFFF9A8C)
                         )
                         Spacer(Modifier.height(10.dp))
                     }
@@ -472,7 +603,7 @@ fun ShareSheet(
                     ) {
                         if (running) {
                             AnalyzingGlyph(
-                                color = Color.White.copy(alpha = 0.78f),
+                                color = ClayMuted,
                                 modifier = Modifier.size(20.dp)
                             )
                         } else {
@@ -480,7 +611,7 @@ fun ShareSheet(
                                 text = if (complete) "Saved to your gallery"
                                 else "Saves straight to your gallery",
                                 fontSize = 8.5.sp,
-                                color = Color.White.copy(alpha = 0.32f * captionAlpha),
+                                color = ClayMuted.copy(alpha = 0.68f * captionAlpha),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -493,8 +624,9 @@ fun ShareSheet(
 }
 
 /**
- * Quality row shaped like the bottom navigation: one rectangular glass cell
- * that springs between the labels instead of a bubble floating above them.
+ * Quality row shaped as one recessed clay trough with a raised clay chip
+ * that slides between the labels. The chip uses a short, predictable ease so
+ * it never overshoots or appears to lag behind the tap.
  */
 @Composable
 private fun QualityPicker(
@@ -505,14 +637,13 @@ private fun QualityPicker(
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val gap = 6.dp
         val count = qualities.size
-        val chipWidth = (maxWidth - gap * (count - 1)) / count
-        val index = qualities.indexOfFirst { it.height == selected }.coerceAtLeast(0)
-
-        val indicatorX by animateDpAsState(
-            targetValue = (chipWidth + gap) * index,
-            animationSpec = spring(
-                dampingRatio = 0.74f,
-                stiffness = Spring.StiffnessMediumLow
+        val innerWidth = (maxWidth - 8.dp - gap * (count - 1)) / count
+        val innerIndex = qualities.indexOfFirst { it.height == selected }.coerceAtLeast(0)
+        val innerX by animateDpAsState(
+            targetValue = (innerWidth + gap) * innerIndex,
+            animationSpec = tween(
+                durationMillis = 200,
+                easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
             ),
             label = "quality-indicator"
         )
@@ -520,19 +651,25 @@ private fun QualityPicker(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(38.dp)
+                .height(42.dp)
+                .clayInset(
+                    shape = RoundedCornerShape(14.dp),
+                    color = ClaySunken,
+                    cornerRadius = 14.dp
+                )
+                .padding(4.dp)
         ) {
             Box(
                 modifier = Modifier
-                    .offset(x = indicatorX)
-                    .width(chipWidth)
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.16f))
-                    .border(
-                        1.dp,
-                        Color.White.copy(alpha = 0.40f),
-                        RoundedCornerShape(10.dp)
+                    .offset(x = innerX)
+                    .width(innerWidth)
+                    .height(34.dp)
+                    .clayRaised(
+                        shape = RoundedCornerShape(10.dp),
+                        color = ClayAccent,
+                        cornerRadius = 10.dp,
+                        elevation = 7.dp,
+                        shadowColor = ClayAccent.copy(alpha = 0.45f)
                     )
             )
 
@@ -560,8 +697,8 @@ private fun QualityPicker(
                             text = choice.label,
                             fontSize = 9.5.sp,
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                            color = if (active) Color.White
-                            else Color.White.copy(alpha = 0.58f)
+                            color = if (active) ClayShadow
+                            else ClayMuted
                         )
                     }
                 }
@@ -586,7 +723,6 @@ private fun DownloadWindow(
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
-    val palette = LocalMenuPalette.current
 
     val running = state is DownloadState.Running
     val complete = state is DownloadState.Complete
@@ -606,7 +742,7 @@ private fun DownloadWindow(
     )
     val slideAlpha by animateFloatAsState(
         targetValue = if (running || complete) 0f else 1f,
-        animationSpec = tween(260),
+        animationSpec = tween(180),
         label = "slide-alpha"
     )
     val loaderAlpha by animateFloatAsState(
@@ -660,27 +796,10 @@ private fun DownloadWindow(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    brush = Brush.verticalGradient(
-                        listOf(
-                            palette.background,
-                            palette.background.copy(
-                                alpha = (palette.background.alpha * 0.85f).coerceIn(0f, 1f)
-                            )
-                        )
-                    ),
-                    shape = RoundedCornerShape(40.dp)
-                )
-                .border(
-                    width = 1.dp,
-                    brush = Brush.verticalGradient(
-                        listOf(
-                            palette.highlight,
-                            Color.White.copy(alpha = 0.10f),
-                            Color.White.copy(alpha = 0.05f)
-                        )
-                    ),
-                    shape = RoundedCornerShape(40.dp)
+                .clayInset(
+                    shape = RoundedCornerShape(40.dp),
+                    color = ClaySunken,
+                    cornerRadius = 40.dp
                 )
         )
 
@@ -689,14 +808,14 @@ private fun DownloadWindow(
                 .fillMaxSize()
                 .padding(6.dp)
                 .clip(RoundedCornerShape(34.dp))
-                .background(Color.White.copy(alpha = 0.05f))
+                .background(Color(0xFF121017))
                 .graphicsLayer { alpha = loaderAlpha }
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
                     .fillMaxWidth(fill)
-                    .background(Green)
+                    .background(ClayAccent)
             )
         }
 
@@ -704,7 +823,7 @@ private fun DownloadWindow(
             text = label,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = labelAlpha),
+            color = ClayText.copy(alpha = labelAlpha),
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .align(Alignment.Center)
@@ -718,12 +837,12 @@ private fun DownloadWindow(
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
                 shadow = Shadow(
-                    color = Color.Black.copy(alpha = 0.5f),
+                    color = ClayShadow.copy(alpha = 0.7f),
                     offset = Offset(0f, 2f),
                     blurRadius = 4f
                 )
             ),
-            color = Color.White,
+            color = ClayText,
             modifier = Modifier
                 .align(Alignment.Center)
                 .graphicsLayer { alpha = percentAlpha }
@@ -744,14 +863,11 @@ private fun DownloadWindow(
                     scaleX = 0.72f + 0.28f * slideAlpha
                     scaleY = 0.72f + 0.28f * slideAlpha
                 }
-                .shadow(
-                    elevation = 12.dp,
-                    shape = CircleShape,
-                    ambientColor = Green.copy(alpha = 0.40f),
-                    spotColor = Green.copy(alpha = 0.40f)
+                .clayCircle(
+                    color = if (enabled) ClayAccent else ClayAccent.copy(alpha = 0.45f),
+                    elevation = 14.dp,
+                    shadowColor = ClayAccent.copy(alpha = 0.42f)
                 )
-                .clip(CircleShape)
-                .background(if (enabled) Green else Green.copy(alpha = 0.35f))
                 .pointerInput(maxOffset, enabled) {
                     if (!enabled) return@pointerInput
                     detectHorizontalDragGestures(
@@ -765,27 +881,28 @@ private fun DownloadWindow(
                             dragValue = (dragValue + dragAmount).coerceIn(0f, maxOffset)
                         },
                         onDragEnd = {
-                            dragging = false
-                            if (dragValue >= maxOffset * 0.8f) {
-                                scope.launch {
-                                    settle.snapTo(dragValue)
+                            // Keep dragging=true until settle has snapped to the
+                            // release point. Otherwise offset flips back to the
+                            // stale settle value for one frame and the knob jumps.
+                            val end = dragValue
+                            scope.launch {
+                                settle.snapTo(end)
+                                dragging = false
+                                if (end >= maxOffset * 0.8f) {
                                     settle.animateTo(
                                         targetValue = maxOffset,
                                         animationSpec = tween(
-                                            durationMillis = 200,
-                                            easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
+                                            durationMillis = 160,
+                                            easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
                                         )
                                     )
                                     onTrigger()
-                                }
-                            } else {
-                                scope.launch {
-                                    settle.snapTo(dragValue)
+                                } else {
                                     settle.animateTo(
                                         targetValue = 0f,
                                         animationSpec = tween(
-                                            durationMillis = 300,
-                                            easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
+                                            durationMillis = 220,
+                                            easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
                                         )
                                     )
                                     dragValue = 0f
@@ -793,14 +910,15 @@ private fun DownloadWindow(
                             }
                         },
                         onDragCancel = {
-                            dragging = false
+                            val end = dragValue
                             scope.launch {
-                                settle.snapTo(dragValue)
+                                settle.snapTo(end)
+                                dragging = false
                                 settle.animateTo(
                                     targetValue = 0f,
                                     animationSpec = tween(
-                                        durationMillis = 300,
-                                        easing = CubicBezierEasing(0.25f, 1f, 0.5f, 1f)
+                                        durationMillis = 220,
+                                        easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
                                     )
                                 )
                                 dragValue = 0f
@@ -813,7 +931,7 @@ private fun DownloadWindow(
             Icon(
                 imageVector = Icons.Outlined.ChevronRight,
                 contentDescription = "Slide to download",
-                tint = Color.White,
+                tint = ClayShadow,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -945,14 +1063,14 @@ private fun SuccessOverlay(
             check.snapTo(0f)
             burst.snapTo(0f)
             // Let the green bar finish filling before the tick pops.
-            delay(180)
+            delay(120)
             launch { alpha.animateTo(1f, tween(300)) }
             launch {
                 scale.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
-                        durationMillis = 760,
-                        easing = CubicBezierEasing(0.34f, 1.42f, 0.64f, 1f)
+                        durationMillis = 480,
+                        easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
                     )
                 )
             }
@@ -961,28 +1079,28 @@ private fun SuccessOverlay(
                 circle.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
-                        durationMillis = 900,
-                        easing = CubicBezierEasing(0.65f, 0f, 0.45f, 1f)
+                        durationMillis = 560,
+                        easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
                     )
                 )
             }
             launch {
-                delay(850)
+                delay(540)
                 check.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
-                        durationMillis = 700,
-                        easing = CubicBezierEasing(0.65f, 0f, 0.45f, 1f)
+                        durationMillis = 440,
+                        easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
                     )
                 )
             }
             launch {
-                delay(650)
+                delay(380)
                 burst.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(
-                        durationMillis = 1500,
-                        easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)
+                        durationMillis = 900,
+                        easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
                     )
                 )
             }
@@ -1058,14 +1176,11 @@ private fun SuccessOverlay(
                     scaleY = scale.value
                     this.alpha = alpha.value
                 }
-                .shadow(
-                    elevation = 32.dp,
-                    shape = CircleShape,
-                    ambientColor = Green,
-                    spotColor = Green
-                )
-                .clip(CircleShape)
-                .background(Green),
+                .clayCircle(
+                    color = Green,
+                    elevation = 24.dp,
+                    shadowColor = Green.copy(alpha = 0.55f)
+                ),
             contentAlignment = Alignment.Center
         ) {
             Canvas(Modifier.size(32.dp)) {
