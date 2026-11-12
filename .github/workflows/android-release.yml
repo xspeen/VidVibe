@@ -137,12 +137,10 @@ jobs:
 
             Built automatically by GitHub Actions from the source at this tag.
 
-            What's new in 2.8.0:
-            - Full VidVibe Browser: real tabs, omnibox, tab switcher and a Chrome-style interface on the Chromium engine
-            - Sign in to any site once; session cookies are captured automatically and reused by the downloader
-            - Built-in ad and tracker blocker, including YouTube pre-roll, mid-roll and in-feed ads
-            - Desktop site mode, recent history, native file downloads and one-tap cookie sync
-            - Registered as a system browser for http and https links
+            What's new in 2.8.1:
+            - Removed the in-app browser; VidVibe is back to the normal downloader app
+            - Removed the first-run notification permission screen
+            - Downloads start immediately with no notification prompt or extra setup
 
             Assets:
             - `app-release.apk` - optimized universal Android release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a, armeabi-v7a, and x86_64 native libraries)

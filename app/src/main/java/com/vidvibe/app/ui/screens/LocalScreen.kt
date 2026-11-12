@@ -61,7 +61,6 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.Search
@@ -151,7 +150,6 @@ fun LocalScreen(
     onCreatePlaylist: (String) -> Playlist?,
     onAddVideosToPlaylist: (String, Set<Long>) -> Unit,
     onDeletePlaylist: (String) -> Unit,
-    onOpenBrowser: () -> Unit,
     onTextInputActiveChanged: (Boolean) -> Unit = {},
     showToast: (String) -> Unit
 ) {
@@ -308,7 +306,6 @@ fun LocalScreen(
                 },
                 onOpenSearch = { searchOpen = true },
                 onCloseSearch = { closeSearch() },
-                onOpenBrowser = onOpenBrowser,
                 onShuffle = {
                     if (videos.size > 1) {
                         shuffledIds = videos.map { it.id }.shuffled()
@@ -508,7 +505,6 @@ private fun LocalHero(
     onSearchQueryChange: (String) -> Unit,
     onOpenSearch: () -> Unit,
     onCloseSearch: () -> Unit,
-    onOpenBrowser: () -> Unit,
     onShuffle: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
@@ -575,25 +571,6 @@ private fun LocalHero(
                     maxLines = 1,
                     modifier = Modifier.weight(1f)
                 )
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.15f))
-                        .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape)
-                        .clickable(onClick = onOpenBrowser),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Language,
-                        contentDescription = "Open VidVibe browser",
-                        tint = textColor,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-
-                Spacer(Modifier.width(8.dp))
-
                 Box(
                     modifier = Modifier
                         .size(36.dp)

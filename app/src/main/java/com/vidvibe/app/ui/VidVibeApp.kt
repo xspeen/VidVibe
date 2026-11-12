@@ -42,7 +42,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.vidvibe.app.browser.BrowserActivity
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.formatFileSize
 import com.vidvibe.app.download.DownloadTask
@@ -195,11 +194,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
                         onDeletePlaylist = { playlistId ->
                             viewModel.deletePlaylist(playlistId)
                         },
-                        onOpenBrowser = {
-                            context.startActivity(
-                                Intent(context, BrowserActivity::class.java)
-                            )
-                        },
                         showToast = { showToast(it) }
                     )
 
@@ -256,11 +250,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
                         cookiesImported = cookiesImported,
                         onImportCookies = { cookiesLauncher.launch(arrayOf("*/*")) },
                         onOpenSiteLogin = { showSiteLogin = true },
-                        onOpenBrowser = {
-                            context.startActivity(
-                                Intent(context, BrowserActivity::class.java)
-                            )
-                        },
                         onClearCookies = viewModel::clearCookies,
                         showToast = { showToast(it) }
                     )
@@ -409,12 +398,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
         if (showSiteLogin) {
             SiteLoginScreen(
                 onClose = { showSiteLogin = false },
-                onOpenBrowser = {
-                    showSiteLogin = false
-                    context.startActivity(
-                        Intent(context, BrowserActivity::class.java)
-                    )
-                },
                 onSaved = { count ->
                     showSiteLogin = false
                     viewModel.refreshCookies()

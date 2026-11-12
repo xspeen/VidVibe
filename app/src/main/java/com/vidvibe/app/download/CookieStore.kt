@@ -68,58 +68,6 @@ object CookieStore {
     }
 
     /**
-     * Merges the live WebView cookie jar for [url] into the existing
-     * cookies.txt instead of replacing it. The browser calls this after every
-     * page load, so a sign-in on any site is immediately available to the
-     * downloader while sessions captured on other hosts stay intact.
-     */
-    fun mergeFromWebView(context: Context, url: String): Int {
-        val manager = CookieManager.getInstance()
-        manager.setAcceptCookie(true)
-        val host = runCatching { Uri.parse(url).host }.getOrNull()
-            ?.removePrefix(".")
-            ?.takeIf { it.isNotBlank() }
-            ?: return 0
-
-        val raw = runCatching { manager.getCookie(url) }.getOrNull().orEmpty()
-        if (raw.isBlank()) return 0
-
-        val expiry = System.currentTimeMillis() / 1000L + HALF_YEAR_SECONDS
-        val rows = raw.split(';').mapNotNull { pair ->
-            val index = pair.indexOf('=')
-            if (index <= 0) return@mapNotNull null
-            val name = pair.substring(0, index).trim()
-            val value = pair.substring(index + 1).trim()
-            if (name.isBlank()) return@mapNotNull null
-            "$host\tTRUE\t/\tTRUE\t$expiry\t$name\t$value"
-        }
-        if (rows.isEmpty()) return 0
-
-        val file = cookiesFile(context)
-        val existing = runCatching {
-            if (file.isFile) {
-                file.readLines().filter { line ->
-                    line.isNotBlank() &&
-                        !line.startsWith("#") &&
-                        line.split('\t').firstOrNull() != host
-                }
-            } else {
-                emptyList()
-            }
-        }.getOrDefault(emptyList())
-
-        val header = buildString {
-            appendLine("# Netscape HTTP Cookie File")
-            appendLine("# Captured inside the VidVibe browser.")
-            appendLine()
-        }
-        return runCatching {
-            file.writeText(header + (existing + rows).joinToString("\n") + "\n")
-            rows.size
-        }.getOrDefault(0)
-    }
-
-    /**
      * Imports a cookies.txt that the user dropped into Downloads (or the app's
      * own external folder). Only runs when VidVibe does not already have one.
      */

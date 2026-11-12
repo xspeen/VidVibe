@@ -36,7 +36,6 @@ import com.vidvibe.app.download.DownloadNotifications
 import com.vidvibe.app.ui.VidVibeApp
 import com.vidvibe.app.ui.components.PermissionScreen
 import com.vidvibe.app.ui.screens.AppLockScreen
-import com.vidvibe.app.ui.screens.NotificationPermissionScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
 import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
@@ -86,7 +85,6 @@ class MainActivity : FragmentActivity() {
             var permissionRequested by rememberSaveable { mutableStateOf(false) }
             var onboardingComplete by rememberSaveable { mutableStateOf(false) }
             var hasUnlocked by rememberSaveable { mutableStateOf(false) }
-            var notificationPromptHandled by rememberSaveable { mutableStateOf(false) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -99,25 +97,13 @@ class MainActivity : FragmentActivity() {
                 permissionLauncher.launch(requiredMediaPermissions())
             }
 
-            val notificationLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission()
-            ) { granted ->
-                viewModel.setNotificationsEnabled(granted)
-                if (granted) {
-                    DownloadNotifications.showWelcome(this@MainActivity)
-                }
-            }
-
             val lifecycleOwner = LocalLifecycleOwner.current
             val currentCheck by rememberUpdatedState(::hasMediaPermission)
             val currentLockEnabled by rememberUpdatedState(settings.appLockEnabled)
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
                     when (event) {
-                        Lifecycle.Event.ON_RESUME -> {
-                            permissionGranted = currentCheck()
-                            viewModel.refreshCookies()
-                        }
+                        Lifecycle.Event.ON_RESUME -> permissionGranted = currentCheck()
                         Lifecycle.Event.ON_STOP -> {
                             if (currentLockEnabled) hasUnlocked = false
                         }
@@ -135,10 +121,6 @@ class MainActivity : FragmentActivity() {
                 settings.appLockEnabled &&
                 !hasUnlocked
             val appReady = settingsLoaded && !showOnboarding && !lockRequired
-            val needsNotificationPrompt = settingsLoaded &&
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                !settings.notificationsPrompted &&
-                !notificationPromptHandled
 
             LaunchedEffect(settingsLoaded, settings.appLockEnabled) {
                 if (settingsLoaded && !settings.appLockEnabled) {
@@ -194,20 +176,6 @@ class MainActivity : FragmentActivity() {
                                     Uri.fromParts("package", packageName, null)
                                 )
                                 startActivity(intent)
-                            }
-                        )
-                        needsNotificationPrompt -> NotificationPermissionScreen(
-                            onAllow = {
-                                notificationPromptHandled = true
-                                viewModel.setNotificationsPrompted(true)
-                                notificationLauncher.launch(
-                                    Manifest.permission.POST_NOTIFICATIONS
-                                )
-                            },
-                            onSkip = {
-                                notificationPromptHandled = true
-                                viewModel.setNotificationsPrompted(true)
-                                viewModel.setNotificationsEnabled(false)
                             }
                         )
                         else -> VidVibeApp(viewModel = viewModel)

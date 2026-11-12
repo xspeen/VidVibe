@@ -6,5 +6,4 @@
     <string name="permission_button">Allow access</string>
     <string name="open_settings">Open settings</string>
     <string name="share_target_label">Save with VidVibe</string>
-    <string name="browser_label">VidVibe Browser</string>
 </resources>

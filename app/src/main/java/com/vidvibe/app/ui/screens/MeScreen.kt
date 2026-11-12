@@ -54,7 +54,6 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
@@ -151,7 +150,6 @@ fun MeScreen(
     cookiesImported: Boolean = false,
     onImportCookies: (() -> Unit)? = null,
     onOpenSiteLogin: (() -> Unit)? = null,
-    onOpenBrowser: (() -> Unit)? = null,
     onClearCookies: () -> Unit = {},
     showToast: (String) -> Unit
 ) {
@@ -202,7 +200,6 @@ fun MeScreen(
                 cookiesImported = cookiesImported,
                 onImportCookies = onImportCookies,
                 onOpenSiteLogin = onOpenSiteLogin,
-                onOpenBrowser = onOpenBrowser,
                 onClearCookies = onClearCookies,
                 showToast = showToast
             )
@@ -342,7 +339,6 @@ private fun AppSettingsPage(
     cookiesImported: Boolean,
     onImportCookies: (() -> Unit)?,
     onOpenSiteLogin: (() -> Unit)?,
-    onOpenBrowser: (() -> Unit)?,
     onClearCookies: () -> Unit,
     showToast: (String) -> Unit
 ) {
@@ -393,7 +389,6 @@ private fun AppSettingsPage(
                     cookiesImported = cookiesImported,
                     onImportCookies = onImportCookies,
                     onOpenSiteLogin = onOpenSiteLogin,
-                    onOpenBrowser = onOpenBrowser,
                     onClearCookies = onClearCookies
                 )
 
@@ -936,7 +931,6 @@ private fun SiteLoginGroup(
     cookiesImported: Boolean,
     onImportCookies: (() -> Unit)?,
     onOpenSiteLogin: (() -> Unit)?,
-    onOpenBrowser: (() -> Unit)?,
     onClearCookies: () -> Unit
 ) {
     val currentText = LocalAppTextColor.current
@@ -997,39 +991,6 @@ private fun SiteLoginGroup(
                     text = "Sign in to sites",
                     fontSize = 12.5.sp,
                     fontWeight = FontWeight.Bold,
-                    color = currentText
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-
-        if (onOpenBrowser != null) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(40.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(
-                        1.dp,
-                        Color.White.copy(alpha = 0.10f),
-                        RoundedCornerShape(20.dp)
-                    )
-                    .clickable(onClick = onOpenBrowser),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Language,
-                    contentDescription = null,
-                    tint = ProfileBlue,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = "Open VidVibe Browser",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
                     color = currentText
                 )
             }
