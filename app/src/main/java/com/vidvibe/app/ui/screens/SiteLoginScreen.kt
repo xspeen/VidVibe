@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
@@ -83,7 +84,8 @@ private val loginSites = listOf(
 @Composable
 fun SiteLoginScreen(
     onClose: () -> Unit,
-    onSaved: (Int) -> Unit
+    onSaved: (Int) -> Unit,
+    onOpenBrowser: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val background = LocalAppBackground.current
@@ -357,6 +359,37 @@ fun SiteLoginScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
+            if (onOpenBrowser != null) {
+                Spacer(Modifier.width(8.dp))
+                Row(
+                    modifier = Modifier
+                        .height(32.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.White.copy(alpha = 0.10f))
+                        .border(
+                            1.dp,
+                            Color.White.copy(alpha = 0.16f),
+                            RoundedCornerShape(16.dp)
+                        )
+                        .clickable(onClick = onOpenBrowser)
+                        .padding(horizontal = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Language,
+                        contentDescription = null,
+                        tint = textColor.copy(alpha = 0.75f),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = "Full browser",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = textColor
+                    )
+                }
+            }
         }
     }
 }

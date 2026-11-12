@@ -114,7 +114,10 @@ class MainActivity : FragmentActivity() {
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
                     when (event) {
-                        Lifecycle.Event.ON_RESUME -> permissionGranted = currentCheck()
+                        Lifecycle.Event.ON_RESUME -> {
+                            permissionGranted = currentCheck()
+                            viewModel.refreshCookies()
+                        }
                         Lifecycle.Event.ON_STOP -> {
                             if (currentLockEnabled) hasUnlocked = false
                         }
