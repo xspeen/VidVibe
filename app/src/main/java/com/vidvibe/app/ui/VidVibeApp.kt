@@ -21,9 +21,6 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -48,7 +45,6 @@ import com.vidvibe.app.download.DownloadTask
 import com.vidvibe.app.download.QueueStatus
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
 import com.vidvibe.app.ui.components.CustomBottomNav
-import com.vidvibe.app.ui.components.CustomSideNav
 import com.vidvibe.app.ui.components.DownloadSavedCard
 import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
 import com.vidvibe.app.ui.components.VidVibeToastHost
@@ -56,8 +52,6 @@ import com.vidvibe.app.ui.screens.DownloaderScreen
 import com.vidvibe.app.ui.screens.LocalScreen
 import com.vidvibe.app.ui.screens.MeScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
-import com.vidvibe.app.ui.screens.SiteLoginScreen
-import com.vidvibe.app.ui.screens.TrimEditorScreen
 import com.vidvibe.app.ui.screens.TrashScreen
 import com.vidvibe.app.ui.screens.VideoPlayerScreen
 import com.vidvibe.app.ui.theme.LocalAppBackground
@@ -88,8 +82,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
     var downloaderFullScreen by remember { mutableStateOf(false) }
     var profileSubPage by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
-    var showSiteLogin by remember { mutableStateOf(false) }
-    var trimVideo by remember { mutableStateOf<VideoItem?>(null) }
     var toast by remember { mutableStateOf<String?>(null) }
     var celebration by remember { mutableStateOf<DownloadTask?>(null) }
     var celebratedId by remember { mutableStateOf(-1L) }
@@ -108,22 +100,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
             viewModel.onSystemDeleteConfirmed()
         } else {
             viewModel.onSystemDeleteCancelled()
-        }
-    }
-
-    val cookiesImported by viewModel.cookiesImported.collectAsStateWithLifecycle()
-    val cookieError by viewModel.cookieError.collectAsStateWithLifecycle()
-
-    val cookiesLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) viewModel.importCookies(uri)
-    }
-
-    LaunchedEffect(cookieError) {
-        cookieError?.let { message ->
-            showToast(message)
-            viewModel.consumeCookieError()
         }
     }
 
@@ -172,8 +148,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
             .fillMaxSize()
             .background(appBackground)
     ) {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wide = maxWidth >= 600.dp && maxWidth > maxHeight
+        Box(Modifier.fillMaxSize()) {
             val tabContent: @Composable (Int) -> Unit = { tab ->
                 when (tab) {
                     0 -> LocalScreen(
@@ -247,10 +222,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
                             )
                         },
                         onSubPageChanged = { profileSubPage = it },
-                        cookiesImported = cookiesImported,
-                        onImportCookies = { cookiesLauncher.launch(arrayOf("*/*")) },
-                        onOpenSiteLogin = { showSiteLogin = true },
-                        onClearCookies = viewModel::clearCookies,
                         showToast = { showToast(it) }
                     )
                 }
@@ -296,33 +267,15 @@ fun VidVibeApp(viewModel: MainViewModel) {
                 }
             }
 
-            if (wide) {
-                Row(Modifier.fillMaxSize()) {
-                    CustomSideNav(
-                        selectedIndex = selectedTab,
-                        onSelect = { selectedTab = it },
-                        liquidGlass = settings.liquidGlass,
-                        visible = navVisible && !navHidden
-                    )
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                    ) {
-                        content()
-                    }
-                }
-            } else {
-                content()
-                CustomBottomNav(
-                    selectedIndex = selectedTab,
-                    onSelect = { selectedTab = it },
-                    liquidGlass = settings.liquidGlass,
-                    visible = navVisible && !navHidden,
-                    hideFraction = navHideFraction,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
+            content()
+            CustomBottomNav(
+                selectedIndex = selectedTab,
+                onSelect = { selectedTab = it },
+                liquidGlass = settings.liquidGlass,
+                visible = navVisible && !navHidden,
+                hideFraction = navHideFraction,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
         }
 
         celebration?.let { task ->
@@ -373,18 +326,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
                 onBack = {
                     playerQueue = emptyList()
                     playerIndex = -1
-                },
-                onTrim = { trimVideo = it }
-            )
-        }
-
-        trimVideo?.let { target ->
-            TrimEditorScreen(
-                video = target,
-                onClose = { trimVideo = null },
-                onSaved = {
-                    viewModel.refresh()
-                    showToast("Clip saved to your gallery.")
                 }
             )
         }
@@ -395,16 +336,6 @@ fun VidVibeApp(viewModel: MainViewModel) {
             )
         }
 
-        if (showSiteLogin) {
-            SiteLoginScreen(
-                onClose = { showSiteLogin = false },
-                onSaved = { count ->
-                    showSiteLogin = false
-                    viewModel.refreshCookies()
-                    showToast("Signed in. Captured $count cookies on this device.")
-                }
-            )
-        }
     }
 }
 

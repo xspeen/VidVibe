@@ -55,7 +55,6 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
-import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PersonOutline
 import androidx.compose.material.icons.outlined.Settings
@@ -110,15 +109,12 @@ import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
 import com.vidvibe.app.ui.theme.BackgroundLook
 import com.vidvibe.app.ui.theme.CustomizationSelection
-import com.vidvibe.app.ui.theme.GlassStyle
 import com.vidvibe.app.ui.theme.IconPack
 import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.theme.LocalAppTextColor
 import com.vidvibe.app.ui.theme.LocalGlassStyle
 import com.vidvibe.app.ui.theme.MenuGlass
-import com.vidvibe.app.ui.theme.MenuPalette
 import com.vidvibe.app.ui.theme.TextTone
-import com.vidvibe.app.ui.theme.backgroundFor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -147,10 +143,6 @@ fun MeScreen(
     librarySizeLabel: String,
     onApplyCustomization: (CustomizationSelection) -> Unit,
     onSubPageChanged: (Boolean) -> Unit,
-    cookiesImported: Boolean = false,
-    onImportCookies: (() -> Unit)? = null,
-    onOpenSiteLogin: (() -> Unit)? = null,
-    onClearCookies: () -> Unit = {},
     showToast: (String) -> Unit
 ) {
     var page by rememberSaveable { mutableStateOf(ProfilePage.Home) }
@@ -197,10 +189,6 @@ fun MeScreen(
                 settings = settings,
                 onBack = { page = ProfilePage.Home },
                 onApplyCustomization = onApplyCustomization,
-                cookiesImported = cookiesImported,
-                onImportCookies = onImportCookies,
-                onOpenSiteLogin = onOpenSiteLogin,
-                onClearCookies = onClearCookies,
                 showToast = showToast
             )
         }
@@ -336,10 +324,6 @@ private fun AppSettingsPage(
     settings: AppSettings,
     onBack: () -> Unit,
     onApplyCustomization: (CustomizationSelection) -> Unit,
-    cookiesImported: Boolean,
-    onImportCookies: (() -> Unit)?,
-    onOpenSiteLogin: (() -> Unit)?,
-    onClearCookies: () -> Unit,
     showToast: (String) -> Unit
 ) {
     val background = LocalAppBackground.current
@@ -385,21 +369,6 @@ private fun AppSettingsPage(
                     .navigationBarsPadding()
                     .padding(bottom = 100.dp)
             ) {
-                SiteLoginGroup(
-                    cookiesImported = cookiesImported,
-                    onImportCookies = onImportCookies,
-                    onOpenSiteLogin = onOpenSiteLogin,
-                    onClearCookies = onClearCookies
-                )
-
-                CustomizationPreview(
-                    look = backgroundLook,
-                    tone = textTone,
-                    glass = glass,
-                    iconPack = iconPack,
-                    theme = theme
-                )
-
                 CustomGroup(
                     icon = Icons.Outlined.AutoAwesome,
                     title = "Animation Style"
@@ -721,124 +690,6 @@ private fun CustomGroup(
 }
 
 @Composable
-private fun CustomizationPreview(
-    look: BackgroundLook,
-    tone: TextTone,
-    glass: MenuGlass,
-    iconPack: IconPack,
-    theme: AppThemeMode
-) {
-    val style = GlassStyle.from(MenuPalette(glass.background, glass.highlight), true)
-    val shape = RoundedCornerShape(22.dp)
-    val previewBackground = backgroundFor(look, theme)
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 18.dp)
-            .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    listOf(previewBackground, Color(0xFF07070A))
-                )
-            )
-            .border(1.dp, style.stroke, shape)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(84.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(previewBackground, Color.Black.copy(alpha = 0.85f))
-                    )
-                )
-                .border(1.dp, style.stroke, RoundedCornerShape(18.dp)),
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            Row(
-                modifier = Modifier
-                    .padding(7.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(glass.background)
-                    .border(1.dp, style.stroke, RoundedCornerShape(9.dp))
-                    .padding(vertical = 5.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                repeat(4) { index ->
-                    Box(
-                        modifier = Modifier
-                            .size(if (iconPack == IconPack.Bold) 5.dp else 4.dp)
-                            .clip(if (index == 0) CircleShape else RoundedCornerShape(1.dp))
-                            .background(
-                                if (index == 0) {
-                                    tone.color
-                                } else {
-                                    Color.White.copy(alpha = 0.32f)
-                                }
-                            )
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.width(14.dp))
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = "LIVE PREVIEW",
-                fontSize = 8.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.2.sp,
-                color = tone.color.copy(alpha = 0.45f)
-            )
-            Spacer(Modifier.height(5.dp))
-            Text(
-                text = "Your library, your glass",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                color = tone.color,
-                maxLines = 2
-            )
-            Spacer(Modifier.height(9.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                PreviewChip(
-                    text = glass.label,
-                    background = glass.background,
-                    border = style.indicatorStroke
-                )
-                PreviewChip(
-                    text = "${iconPack.label} icons",
-                    background = Color.White.copy(alpha = 0.05f),
-                    border = style.stroke
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PreviewChip(text: String, background: Color, border: Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(background)
-            .border(1.dp, border, RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp, vertical = 3.dp)
-    ) {
-        Text(
-            text = text,
-            fontSize = 8.5.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.White.copy(alpha = 0.78f)
-        )
-    }
-}
-
-@Composable
 private fun OptionButton(
     label: String,
     selected: Boolean,
@@ -924,143 +775,6 @@ private fun GlassColorDot(
             )
             .clickable(onClick = onClick)
     )
-}
-
-@Composable
-private fun SiteLoginGroup(
-    cookiesImported: Boolean,
-    onImportCookies: (() -> Unit)?,
-    onOpenSiteLogin: (() -> Unit)?,
-    onClearCookies: () -> Unit
-) {
-    val currentText = LocalAppTextColor.current
-
-    CustomGroup(
-        icon = Icons.Outlined.Lock,
-        title = "Site Logins"
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = "Automatic cookies",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = currentText
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = if (cookiesImported) {
-                        "Session saved. Private, age-gated and login-only videos can be fetched."
-                    } else {
-                        "Sign in once inside VidVibe. No file export needed."
-                    },
-                    fontSize = 11.sp,
-                    color = if (cookiesImported) ProfileGreen.copy(alpha = 0.90f) else ProfileText2,
-                    lineHeight = 15.sp
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-            Box(
-                modifier = Modifier
-                    .size(9.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (cookiesImported) ProfileGreen
-                        else Color.White.copy(alpha = 0.22f)
-                    )
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-
-        if (onOpenSiteLogin != null) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(42.dp)
-                    .clip(RoundedCornerShape(21.dp))
-                    .background(ProfileBlue.copy(alpha = 0.24f))
-                    .border(1.dp, ProfileBlue.copy(alpha = 0.50f), RoundedCornerShape(21.dp))
-                    .clickable(onClick = onOpenSiteLogin),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Sign in to sites",
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = currentText
-                )
-            }
-            Spacer(Modifier.height(8.dp))
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(38.dp)
-                    .clip(RoundedCornerShape(19.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(
-                        1.dp,
-                        Color.White.copy(alpha = 0.08f),
-                        RoundedCornerShape(19.dp)
-                    )
-                    .then(
-                        if (onImportCookies != null) {
-                            Modifier.clickable(onClick = onImportCookies)
-                        } else {
-                            Modifier
-                        }
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (onImportCookies != null) "Import cookies.txt" else "Open VidVibe to import",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (onImportCookies != null) currentText
-                    else currentText.copy(alpha = 0.45f)
-                )
-            }
-
-            if (cookiesImported) {
-                Box(
-                    modifier = Modifier
-                        .width(88.dp)
-                        .height(38.dp)
-                        .clip(RoundedCornerShape(19.dp))
-                        .background(Color(0x22FF5A5F))
-                        .border(1.dp, Color(0x55FF5A5F), RoundedCornerShape(19.dp))
-                        .clickable(onClick = onClearCookies),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Remove",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFFFF8A8E)
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            text = "VidVibe captures the session inside the app and keeps it on this device. " +
-                "A cookies.txt dropped in Downloads is detected automatically.",
-            fontSize = 10.sp,
-            color = ProfileText2,
-            lineHeight = 14.sp
-        )
-    }
 }
 
 @Composable

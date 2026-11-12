@@ -21,7 +21,6 @@ data class AppSettings(
     val liquidGlass: Boolean = true,
     val backgroundColor: Int = 0xFF050507.toInt(),
     val wifiOnly: Boolean = false,
-    val appLockEnabled: Boolean = false,
     val onboardingSeen: Boolean = false,
     val animationStyle: String = "bouncy",
     val appFont: String = "inter",
@@ -44,7 +43,6 @@ class SettingsStore(private val context: Context) {
         val liquidGlass = booleanPreferencesKey("liquid_glass")
         val backgroundColor = intPreferencesKey("background_color")
         val wifiOnly = booleanPreferencesKey("wifi_only")
-        val appLock = booleanPreferencesKey("app_lock")
         val onboardingSeen = booleanPreferencesKey("onboarding_seen")
         val animationStyle = stringPreferencesKey("animation_style")
         val appFont = stringPreferencesKey("app_font")
@@ -66,7 +64,6 @@ class SettingsStore(private val context: Context) {
             liquidGlass = preferences[Keys.liquidGlass] ?: true,
             backgroundColor = preferences[Keys.backgroundColor] ?: 0xFF050507.toInt(),
             wifiOnly = preferences[Keys.wifiOnly] ?: false,
-            appLockEnabled = preferences[Keys.appLock] ?: false,
             onboardingSeen = preferences[Keys.onboardingSeen] ?: false,
             animationStyle = preferences[Keys.animationStyle] ?: "bouncy",
             appFont = preferences[Keys.appFont] ?: "inter",
@@ -97,10 +94,6 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setWifiOnly(enabled: Boolean) {
         context.vidVibeDataStore.edit { it[Keys.wifiOnly] = enabled }
-    }
-
-    suspend fun setAppLock(enabled: Boolean) {
-        context.vidVibeDataStore.edit { it[Keys.appLock] = enabled }
     }
 
     suspend fun setOnboardingSeen(seen: Boolean) {

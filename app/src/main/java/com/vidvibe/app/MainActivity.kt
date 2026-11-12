@@ -35,7 +35,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vidvibe.app.download.DownloadNotifications
 import com.vidvibe.app.ui.VidVibeApp
 import com.vidvibe.app.ui.components.PermissionScreen
-import com.vidvibe.app.ui.screens.AppLockScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
 import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
@@ -84,7 +83,6 @@ class MainActivity : FragmentActivity() {
             }
             var permissionRequested by rememberSaveable { mutableStateOf(false) }
             var onboardingComplete by rememberSaveable { mutableStateOf(false) }
-            var hasUnlocked by rememberSaveable { mutableStateOf(false) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.RequestMultiplePermissions()
@@ -99,15 +97,10 @@ class MainActivity : FragmentActivity() {
 
             val lifecycleOwner = LocalLifecycleOwner.current
             val currentCheck by rememberUpdatedState(::hasMediaPermission)
-            val currentLockEnabled by rememberUpdatedState(settings.appLockEnabled)
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
-                    when (event) {
-                        Lifecycle.Event.ON_RESUME -> permissionGranted = currentCheck()
-                        Lifecycle.Event.ON_STOP -> {
-                            if (currentLockEnabled) hasUnlocked = false
-                        }
-                        else -> Unit
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        permissionGranted = currentCheck()
                     }
                 }
                 lifecycleOwner.lifecycle.addObserver(observer)
@@ -117,16 +110,7 @@ class MainActivity : FragmentActivity() {
             val showOnboarding = settingsLoaded &&
                 !settings.onboardingSeen &&
                 !onboardingComplete
-            val lockRequired = settingsLoaded &&
-                settings.appLockEnabled &&
-                !hasUnlocked
-            val appReady = settingsLoaded && !showOnboarding && !lockRequired
-
-            LaunchedEffect(settingsLoaded, settings.appLockEnabled) {
-                if (settingsLoaded && !settings.appLockEnabled) {
-                    hasUnlocked = true
-                }
-            }
+            val appReady = settingsLoaded && !showOnboarding
 
             LaunchedEffect(appReady) {
                 if (appReady && !permissionGranted && !permissionRequested) {
@@ -164,9 +148,6 @@ class MainActivity : FragmentActivity() {
                                 onboardingComplete = true
                                 viewModel.setOnboardingSeen(true)
                             }
-                        )
-                        lockRequired -> AppLockScreen(
-                            onUnlocked = { hasUnlocked = true }
                         )
                         !permissionGranted -> PermissionScreen(
                             onAllow = requestPermission,

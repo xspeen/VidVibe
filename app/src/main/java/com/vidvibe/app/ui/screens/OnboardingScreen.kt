@@ -113,8 +113,8 @@ private val tourPages = listOf(
         eyebrow = "Private by design",
         title = "Only you",
         titleItalic = "get in.",
-        subtitle = "App Lock with fingerprint, face or device passcode. No accounts, " +
-            "no tracking, no analytics. Your work stays yours.",
+        subtitle = "No accounts, no tracking, no analytics. " +
+            "Your work stays yours.",
         meta = ""
     )
 )

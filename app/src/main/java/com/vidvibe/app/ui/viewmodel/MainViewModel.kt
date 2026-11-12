@@ -33,7 +33,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 
 sealed interface DownloadState {
     data object Idle : DownloadState
@@ -85,12 +84,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val _pasteToken = MutableStateFlow(0)
     val pasteToken: StateFlow<Int> = _pasteToken.asStateFlow()
 
-    private val _cookiesImported = MutableStateFlow(YtDlpManager.hasCookies(application))
-    val cookiesImported: StateFlow<Boolean> = _cookiesImported.asStateFlow()
-
-    private val _cookieError = MutableStateFlow<String?>(null)
-    val cookieError: StateFlow<String?> = _cookieError.asStateFlow()
-
     private var pasteCounter = 0
 
     private var refreshJob: Job? = null
@@ -101,10 +94,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refresh()
         viewModelScope.launch {
             if (settings.value.autoCookies) {
-                val imported = withContext(Dispatchers.IO) {
+                withContext(Dispatchers.IO) {
                     CookieStore.autoImport(getApplication())
                 }
-                if (imported) _cookiesImported.value = true
             }
         }
         viewModelScope.launch {
@@ -213,58 +205,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         pendingPermanentDeleteIds = emptySet()
     }
 
-    /**
-     * Copies a user-picked Netscape cookies.txt into app storage. yt-dlp reads
-     * it when a site demands a signed-in session, which is what makes private
-     * and login-only posts reachable.
-     */
-    fun importCookies(uri: Uri) {
-        viewModelScope.launch {
-            val imported = withContext(Dispatchers.IO) {
-                runCatching {
-                    val app = getApplication<Application>()
-                    val target = YtDlpManager.cookiesFile(app)
-                    val stream = app.contentResolver.openInputStream(uri)
-                        ?: return@runCatching false
-                    stream.use { source ->
-                        target.outputStream().use { sink -> source.copyTo(sink) }
-                    }
-                    val valid = target.isFile && target.length() > 0L && looksLikeCookies(target)
-                    if (!valid) target.delete()
-                    valid
-                }.getOrDefault(false)
-            }
-            _cookiesImported.value = imported
-            if (!imported) {
-                _cookieError.value =
-                    "That file is not a Netscape cookies.txt export."
-            }
-        }
-    }
-
-    fun clearCookies() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { CookieStore.clear(getApplication()) }
-            _cookiesImported.value = false
-        }
-    }
-
-    fun refreshCookies() {
-        _cookiesImported.value = YtDlpManager.hasCookies(getApplication())
-    }
-
-    fun consumeCookieError() {
-        _cookieError.value = null
-    }
-
-    private fun looksLikeCookies(file: File): Boolean = runCatching {
-        file.useLines { lines ->
-            lines.take(500).any { line ->
-                !line.startsWith("#") && line.count { it == '\t' } >= 6
-            }
-        }
-    }.getOrDefault(false)
-
     fun startDownload(url: String, qualityHeight: Int) {
         val cleanUrl = url.trim()
         val parsed = runCatching { Uri.parse(cleanUrl) }.getOrNull()
@@ -333,10 +273,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setWifiOnly(enabled: Boolean) {
         viewModelScope.launch { settingsStore.setWifiOnly(enabled) }
-    }
-
-    fun setAppLock(enabled: Boolean) {
-        viewModelScope.launch { settingsStore.setAppLock(enabled) }
     }
 
     fun setOnboardingSeen(seen: Boolean) {
