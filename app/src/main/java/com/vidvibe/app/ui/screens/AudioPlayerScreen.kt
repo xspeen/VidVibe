@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,7 +44,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -345,8 +349,8 @@ private fun SeekBar(
     val density = LocalDensity.current
     val total = durationMs.coerceAtLeast(1L)
     val fraction = (positionMs.toFloat() / total).coerceIn(0f, 1f)
-    var dragging by remember { androidx.compose.runtime.mutableStateOf(false) }
-    var dragFraction by remember { androidx.compose.runtime.mutableFloatStateOf(fraction) }
+    var dragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableFloatStateOf(fraction) }
     val shown = if (dragging) dragFraction else fraction
 
     Column(modifier = Modifier.padding(horizontal = 28.dp)) {
@@ -372,7 +376,7 @@ private fun SeekBar(
                     }
                 }
                 .pointerInput(total) {
-                    androidx.compose.foundation.gestures.detectTapGestures(
+                    detectTapGestures(
                         onTap = { offset ->
                             val target = (offset.x / size.width.toFloat()).coerceIn(0f, 1f)
                             dragFraction = target
