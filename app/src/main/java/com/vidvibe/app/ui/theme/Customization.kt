@@ -42,7 +42,9 @@ enum class BackgroundLook(
     Violet("violet", "Violet", Color(0xFF160A2E)),
     Slate("slate", "Slate", Color(0xFF14181F)),
     Crimson("crimson", "Crimson", Color(0xFF240A0D)),
-    Sand("sand", "Sand", Color(0xFF2A2318));
+    Sand("sand", "Sand", Color(0xFF2A2318)),
+    Clay("clay", "Clay", Color(0xFF221F1B)),
+    Moss("moss", "Moss", Color(0xFF17211A));
 
     companion object {
         fun from(key: String?): BackgroundLook = entries.firstOrNull { it.key == key } ?: Midnight
@@ -85,7 +87,8 @@ enum class MenuGlass(
     Gold("gold", "Gold", Color(0xB33A2A08), Color(0x66FFD700)),
     Frost("frost", "Frost", Color(0xB31A2433), Color(0x66BFE3FF)),
     Rose("rose", "Rose", Color(0xB3400A24), Color(0x66FF7AB8)),
-    Carbon("carbon", "Carbon", Color(0xB30A0A0A), Color(0x66FFFFFF));
+    Carbon("carbon", "Carbon", Color(0xB30A0A0A), Color(0x66FFFFFF)),
+    Clay("clay", "Clay", Color(0xE626221D), Color(0x66FFD9A0));
 
     companion object {
         fun from(key: String?): MenuGlass = entries.firstOrNull { it.key == key } ?: Default

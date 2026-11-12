@@ -3,13 +3,15 @@ package com.vidvibe.app.ui.screens
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -41,8 +43,10 @@ import androidx.compose.material.icons.outlined.ArrowUpward
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,10 +63,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -83,23 +91,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.vidvibe.app.data.AppSettings
+import com.vidvibe.app.data.Platform
 import com.vidvibe.app.download.DownloadTask
 import com.vidvibe.app.download.QueueStatus
 import com.vidvibe.app.ui.components.FloatingMenuColor
 import com.vidvibe.app.ui.components.FloatingMenuState
 import com.vidvibe.app.ui.components.FloatingPanel
+import com.vidvibe.app.ui.components.PlatformLogo
 import com.vidvibe.app.ui.components.VidVibeFloatingMenu
 import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.theme.LocalGlassStyle
 import com.vidvibe.app.ui.viewmodel.DownloadState
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun DownloaderScreen(
     downloadState: DownloadState,
     settings: AppSettings,
-    onStartDownload: (String, Int) -> Unit,
+    onStartDownload: (String, Int, Boolean) -> Unit,
     onResetDownload: () -> Unit,
     onWifiOnlyChange: (Boolean) -> Unit,
     onFullScreenChanged: (Boolean) -> Unit = {},
@@ -119,6 +132,14 @@ fun DownloaderScreen(
 
     var link by rememberSaveable { mutableStateOf("") }
     var selectedQuality by rememberSaveable { mutableIntStateOf(720) }
+    var audioOnly by rememberSaveable { mutableStateOf(false) }
+    val platform = remember(link) {
+        if (link.isBlank()) Platform.Other else Platform.fromUrl(link)
+    }
+
+    LaunchedEffect(platform) {
+        if (platform.audio && link.isNotBlank()) audioOnly = true
+    }
 
     val overlayVisible = menu.success ||
         menu.panel == FloatingPanel.Quality ||
@@ -148,21 +169,32 @@ fun DownloaderScreen(
             .orEmpty()
     }
 
-    fun openQuality() {
+    fun openDownloadSheet() {
         keyboard?.hide()
-        menu.openQuality()
+        if (audioOnly) {
+            menu.openSlide(
+                color = FloatingMenuColor.Download,
+                label = "Swipe to Download Audio",
+                autoProgress = false
+            )
+        } else {
+            menu.openQuality()
+        }
     }
 
     fun beginDownload() {
         if (link.isBlank()) {
             val pasted = clipboardText()
-            if (pasted.isNotBlank()) link = pasted
+            if (pasted.isNotBlank()) {
+                link = pasted
+                audioOnly = Platform.fromUrl(pasted).audio
+            }
         }
         if (link.isBlank()) {
-            showToast("Paste a video link first")
+            showToast("Paste a link first")
             return
         }
-        openQuality()
+        openDownloadSheet()
     }
 
     LaunchedEffect(pasteToken) {
@@ -178,9 +210,10 @@ fun DownloaderScreen(
             }
             if (pasted.isNotBlank()) {
                 link = pasted
-                openQuality()
+                audioOnly = Platform.fromUrl(pasted).audio
+                openDownloadSheet()
             } else {
-                showToast("Clipboard is empty. Copy a video link first.")
+                showToast("Clipboard is empty. Copy a link first.")
             }
             onPasteConsumed()
         }
@@ -236,22 +269,43 @@ fun DownloaderScreen(
                     .padding(horizontal = 20.dp, vertical = 20.dp)
             ) {
                 Text(
-                    text = "Media URL",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    text = "MEDIA URL",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
                     color = Color(0xFFA0A0A8),
-                    letterSpacing = 0.2.sp,
+                    letterSpacing = 1.1.sp,
                     modifier = Modifier.padding(start = 4.dp)
                 )
                 Spacer(Modifier.height(12.dp))
                 DownloadLinkInput(
                     link = link,
-                    onLinkChange = { link = it.trimStart() },
+                    onLinkChange = {
+                        link = it.trimStart()
+                        if (it.isBlank()) audioOnly = false
+                    },
                     onFetch = { beginDownload() },
                     onGo = { beginDownload() }
                 )
+
+                Spacer(Modifier.height(14.dp))
+                PlatformRow(
+                    platform = platform,
+                    hasLink = link.isNotBlank(),
+                    audioOnly = audioOnly,
+                    onAudioToggle = {
+                        audioOnly = !audioOnly
+                        if (audioOnly) {
+                            menu.openSlide(
+                                color = FloatingMenuColor.Download,
+                                label = "Swipe to Download Audio",
+                                autoProgress = false
+                            )
+                        }
+                    }
+                )
+
                 if (queue.isNotEmpty()) {
-                    Spacer(Modifier.height(26.dp))
+                    Spacer(Modifier.height(24.dp))
                     DownloadQueuePanel(
                         queue = queue,
                         onCancel = onCancelTask,
@@ -283,10 +337,10 @@ fun DownloaderScreen(
             onSlideConfirmed = {
                 if (link.isBlank()) {
                     menu.hide()
-                    showToast("Paste a video link first")
+                    showToast("Paste a link first")
                 } else {
                     menu.beginProgress(auto = false, progress = 0f)
-                    onStartDownload(link, selectedQuality)
+                    onStartDownload(link, selectedQuality, audioOnly)
                 }
             },
             onAutoProgressFinished = {},
@@ -296,6 +350,71 @@ fun DownloaderScreen(
             },
             modifier = Modifier.fillMaxSize()
         )
+    }
+}
+
+@Composable
+private fun PlatformRow(
+    platform: Platform,
+    hasLink: Boolean,
+    audioOnly: Boolean,
+    onAudioToggle: () -> Unit
+) {
+    val glass = LocalGlassStyle.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (hasLink && platform != Platform.Other) {
+            PlatformLogo(platform = platform, size = 22.dp)
+            Spacer(Modifier.width(9.dp))
+            Text(
+                text = platform.label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White.copy(alpha = 0.82f)
+            )
+            Spacer(Modifier.weight(1f))
+        } else {
+            Text(
+                text = "Video and audio links are supported",
+                fontSize = 11.sp,
+                color = Color.White.copy(alpha = 0.42f),
+                modifier = Modifier.weight(1f)
+            )
+        }
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(
+                    if (audioOnly) Color(0xFF30D158).copy(alpha = 0.18f)
+                    else Color.White.copy(alpha = 0.055f)
+                )
+                .border(
+                    1.dp,
+                    if (audioOnly) Color(0xFF30D158).copy(alpha = 0.5f) else glass.stroke,
+                    RoundedCornerShape(14.dp)
+                )
+                .clickable(onClick = onAudioToggle)
+                .padding(horizontal = 11.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (audioOnly) Icons.Outlined.GraphicEq else Icons.Outlined.MusicNote,
+                contentDescription = null,
+                tint = if (audioOnly) Color(0xFF30D158) else Color.White.copy(alpha = 0.55f),
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = if (audioOnly) "Audio" else "Audio off",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (audioOnly) Color(0xFF7CFFCB) else Color.White.copy(alpha = 0.6f)
+            )
+        }
     }
 }
 
@@ -471,7 +590,7 @@ private fun DownloadLinkInput(
                 Box {
                     if (link.isEmpty()) {
                         Text(
-                            text = "https://www.instagram.com/reel/...",
+                            text = "Paste a video or music link...",
                             fontSize = 14.sp,
                             color = Color(0xFF6B6B75),
                             maxLines = 1,
@@ -502,7 +621,6 @@ private fun DownloadLinkInput(
     }
 }
 
-
 @Composable
 private fun DownloadQueuePanel(
     queue: List<DownloadTask>,
@@ -512,20 +630,17 @@ private fun DownloadQueuePanel(
     onClearFinished: () -> Unit
 ) {
     val glass = LocalGlassStyle.current
-    val finished = queue.count {
-        it.state == QueueStatus.Complete ||
-            it.state == QueueStatus.Failed ||
-            it.state == QueueStatus.Cancelled
-    }
-    val active = queue.firstOrNull { it.state == QueueStatus.Running }
-    val shape = RoundedCornerShape(22.dp)
+    val finished = queue.count { it.isFinished }
+    val shape = RoundedCornerShape(24.dp)
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(
-                Brush.verticalGradient(listOf(glass.bodyTop, glass.bodyBottom))
+                Brush.verticalGradient(
+                    listOf(Color(0xFF17171E), Color(0xFF0D0D12))
+                )
             )
             .border(1.dp, glass.stroke, shape)
             .padding(horizontal = 12.dp, vertical = 13.dp)
@@ -568,33 +683,6 @@ private fun DownloadQueuePanel(
             }
         }
 
-        if (active != null) {
-            val progress by animateFloatAsState(
-                targetValue = active.progress.coerceIn(0, 100) / 100f,
-                animationSpec = androidx.compose.animation.core.tween(320),
-                label = "queue-total"
-            )
-            Spacer(Modifier.height(9.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp)
-                    .clip(RoundedCornerShape(1.dp))
-                    .background(Color.White.copy(alpha = 0.07f))
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(progress)
-                        .fillMaxHeight()
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(Color(0xFF5AA9FF), Color(0xFF7CFFCB))
-                            )
-                        )
-                )
-            }
-        }
-
         Spacer(Modifier.height(10.dp))
         queue.forEach { task ->
             QueueCard(
@@ -603,7 +691,7 @@ private fun DownloadQueuePanel(
                 onRetry = { onRetry(task.id) },
                 onRemove = { onRemove(task.id) }
             )
-            Spacer(Modifier.height(7.dp))
+            Spacer(Modifier.height(8.dp))
         }
         Spacer(Modifier.height(1.dp))
     }
@@ -616,7 +704,6 @@ private fun QueueCard(
     onRetry: () -> Unit,
     onRemove: () -> Unit
 ) {
-    val glass = LocalGlassStyle.current
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
     val accent = when (task.state) {
@@ -626,9 +713,10 @@ private fun QueueCard(
         QueueStatus.Failed -> Color(0xFFFF5A5F)
         QueueStatus.Cancelled -> Color(0xFF9AA0AA)
     }
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
     val running = task.state == QueueStatus.Running || task.state == QueueStatus.Queued
     val retryable = task.state == QueueStatus.Failed || task.state == QueueStatus.Cancelled
+    val complete = task.state == QueueStatus.Complete
     val primaryLabel = if (running) "Cancel" else "Remove"
     val primaryAction = if (running) onCancel else onRemove
 
@@ -641,16 +729,13 @@ private fun QueueCard(
         animationSpec = if (dragging) {
             androidx.compose.animation.core.snap()
         } else {
-            androidx.compose.animation.core.tween(
-                durationMillis = 220,
-                easing = androidx.compose.animation.core.FastOutSlowInEasing
-            )
+            tween(durationMillis = 220, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
         },
         label = "queue-swipe"
     )
     val progress by animateFloatAsState(
-        targetValue = task.progress.coerceIn(0, 100) / 100f,
-        animationSpec = androidx.compose.animation.core.tween(360),
+        targetValue = if (complete) 1f else task.progress.coerceIn(0, 100) / 100f,
+        animationSpec = tween(420),
         label = "queue-progress"
     )
 
@@ -691,20 +776,13 @@ private fun QueueCard(
             )
         }
 
-        Row(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .offset { IntOffset(settled.roundToInt(), 0) }
                 .clip(shape)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF16161D),
-                            Color(0xFF0C0C11)
-                        )
-                    )
-                )
-                .border(1.dp, glass.stroke, shape)
+                .background(Color(0xFF111116))
+                .border(1.dp, Color.White.copy(alpha = 0.07f), shape)
                 .pointerInput(task.id, task.state) {
                     detectHorizontalDragGestures(
                         onDragStart = { dragging = true },
@@ -731,119 +809,227 @@ private fun QueueCard(
                         dragX = (dragX + amount).coerceIn(-maxSwipePx, maxSwipePx)
                     }
                 }
-                .padding(horizontal = 12.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                modifier = Modifier.size(42.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val strokeWidth = 2.4.dp.toPx()
-                    drawArc(
-                        color = Color.White.copy(alpha = 0.08f),
-                        startAngle = -90f,
-                        sweepAngle = 360f,
-                        useCenter = false,
-                        style = Stroke(width = strokeWidth)
-                    )
-                    if (running) {
-                        drawArc(
-                            color = accent,
-                            startAngle = -90f,
-                            sweepAngle = 360f * progress,
-                            useCenter = false,
-                            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            // Full-width design loader: the whole card fills up.
+            Box(Modifier.matchParentSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress)
+                        .fillMaxHeight()
+                        .background(
+                            when {
+                                complete -> Brush.horizontalGradient(
+                                    listOf(Color(0xFF1E7A46), Color(0xFF30D158))
+                                )
+                                retryable -> Brush.horizontalGradient(
+                                    listOf(Color(0xFF143226), Color(0xFF1E4A36))
+                                )
+                                else -> Brush.horizontalGradient(
+                                    listOf(Color(0xFF123A66), Color(0xFF1E5E9E))
+                                )
+                            }
                         )
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.size(44.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (complete) {
+                        QueueSuccessMark()
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.24f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            PlatformLogo(platform = task.platform, size = 26.dp)
+                        }
                     }
                 }
-                Box(
-                    modifier = Modifier
-                        .size(31.dp)
-                        .clip(CircleShape)
-                        .background(accent.copy(alpha = 0.13f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = when (task.state) {
-                            QueueStatus.Complete -> Icons.Outlined.Check
-                            QueueStatus.Failed,
-                            QueueStatus.Cancelled -> Icons.Outlined.Close
-                            else -> Icons.Outlined.Download
+                Spacer(Modifier.width(11.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = task.title,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Text(
+                        text = when (task.state) {
+                            QueueStatus.Queued -> "Waiting in queue"
+                            QueueStatus.Complete -> "Saved · ${task.platform.label}"
+                            QueueStatus.Failed -> task.error ?: "Download failed"
+                            QueueStatus.Cancelled -> "Cancelled"
+                            QueueStatus.Running -> task.status
                         },
-                        contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.size(15.dp)
+                        fontSize = 10.sp,
+                        color = if (task.state == QueueStatus.Failed) {
+                            Color(0xFFFFB3B6)
+                        } else {
+                            Color.White.copy(alpha = 0.68f)
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-            }
-            Spacer(Modifier.width(11.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = task.title,
-                    fontSize = 12.5.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(Modifier.height(3.dp))
-                Text(
-                    text = when (task.state) {
-                        QueueStatus.Queued -> "Waiting in queue"
-                        QueueStatus.Complete -> task.fileName ?: "Saved to your gallery"
-                        QueueStatus.Failed -> task.error ?: "Download failed"
-                        QueueStatus.Cancelled -> "Cancelled"
-                        QueueStatus.Running -> task.status
-                    },
-                    fontSize = 10.sp,
-                    color = if (task.state == QueueStatus.Failed) {
-                        Color(0xFFFF8A8E)
-                    } else {
-                        Color(0xFF9AA0AA)
-                    },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Spacer(Modifier.width(10.dp))
-            if (running) {
-                Text(
-                    text = "${task.progress.coerceIn(0, 100)}%",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = accent
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.055f))
-                        .border(1.dp, glass.stroke, CircleShape)
-                        .clickable {
-                            when (task.state) {
-                                QueueStatus.Complete -> onRemove()
-                                else -> onRetry()
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (task.state == QueueStatus.Complete) {
-                            Icons.Outlined.Close
-                        } else {
-                            Icons.Outlined.Refresh
-                        },
-                        contentDescription = if (task.state == QueueStatus.Complete) {
-                            "Remove from list"
-                        } else {
-                            "Retry download"
-                        },
-                        tint = Color.White.copy(alpha = 0.66f),
-                        modifier = Modifier.size(14.dp)
-                    )
+                Spacer(Modifier.width(10.dp))
+                when {
+                    complete -> {
+                        Text(
+                            text = "100%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color.White
+                        )
+                    }
+
+                    running -> {
+                        Text(
+                            text = "${task.progress.coerceIn(0, 100)}%",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace,
+                            color = Color.White
+                        )
+                    }
+
+                    else -> {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.10f))
+                                .clickable {
+                                    if (task.state == QueueStatus.Complete) onRemove()
+                                    else onRetry()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (task.state == QueueStatus.Complete) {
+                                    Icons.Outlined.Close
+                                } else {
+                                    Icons.Outlined.Refresh
+                                },
+                                contentDescription = if (task.state == QueueStatus.Complete) {
+                                    "Remove from list"
+                                } else {
+                                    "Retry download"
+                                },
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Slow-motion green tick with a soft glow and sparkles, drawn inside the
+ * finished queue card exactly like the share drawer's success state.
+ */
+@Composable
+private fun QueueSuccessMark() {
+    val check = remember { Animatable(0f) }
+    val burst = remember { Animatable(0f) }
+    val glow = remember { Animatable(0f) }
+
+    LaunchedEffect(Unit) {
+        launch {
+            glow.animateTo(1f, tween(420))
+        }
+        launch {
+            check.animateTo(
+                1f,
+                tween(durationMillis = 900, easing = CubicBezierEasing(0.65f, 0f, 0.45f, 1f))
+            )
+        }
+        launch {
+            delay(160)
+            burst.animateTo(
+                1f,
+                tween(durationMillis = 1200, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
+            )
+        }
+    }
+
+    Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+        repeat(8) { index ->
+            val angle = (index / 8f) * (Math.PI * 2f).toFloat()
+            val distance = 22f + (index % 3) * 6f
+            val dx = cos(angle) * distance * burst.value
+            val dy = sin(angle) * distance * burst.value
+            val remaining = 1f - burst.value
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(dx.roundToInt(), dy.roundToInt()) }
+                    .size(4.dp)
+                    .graphicsLayer {
+                        scaleX = remaining
+                        scaleY = remaining
+                        alpha = remaining
+                        rotationZ = 360f * burst.value
+                    }
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(
+                        if (index % 2 == 0) Color(0xFFD6FFE6) else Color(0xFFFFE58A)
+                    )
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .graphicsLayer {
+                    scaleX = 0.75f + glow.value * 0.25f
+                    scaleY = 0.75f + glow.value * 0.25f
+                }
+                .clip(CircleShape)
+                .background(Color(0xFF0E3A24))
+                .border(1.dp, Color(0xFF30D158).copy(alpha = 0.8f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Canvas(Modifier.size(24.dp)) {
+                val s = size.width / 26f
+                val path = Path().apply {
+                    moveTo(6f * s, 13.5f * s)
+                    lineTo(10.5f * s, 18f * s)
+                    lineTo(20f * s, 8f * s)
+                }
+                val measure = PathMeasure().apply { setPath(path, false) }
+                val segment = Path()
+                measure.getSegment(
+                    startDistance = 0f,
+                    stopDistance = measure.length * check.value,
+                    destination = segment,
+                    startWithMoveTo = true
+                )
+                drawPath(
+                    path = segment,
+                    color = Color(0xFF30D158),
+                    style = Stroke(
+                        width = 2.6f * s,
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round
+                    )
+                )
             }
         }
     }

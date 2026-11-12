@@ -177,7 +177,10 @@ class MainActivity : FragmentActivity() {
     private fun requiredMediaPermissions(): Array<String> {
         return when {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
-                arrayOf(Manifest.permission.READ_MEDIA_VIDEO)
+                arrayOf(
+                    Manifest.permission.READ_MEDIA_VIDEO,
+                    Manifest.permission.READ_MEDIA_AUDIO
+                )
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
                 arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -192,11 +195,16 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun hasMediaPermission(): Boolean {
-        val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            Manifest.permission.READ_MEDIA_VIDEO
+        val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            listOf(
+                Manifest.permission.READ_MEDIA_VIDEO,
+                Manifest.permission.READ_MEDIA_AUDIO
+            )
         } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
+            listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
         }
-        return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+        return permissions.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        }
     }
 }

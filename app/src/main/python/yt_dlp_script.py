@@ -57,6 +57,18 @@ def _audio_selector():
     )
 
 
+def _audio_download_selector():
+    """Audio-only download for the Music library. No FFmpeg on device, so the
+    container is kept as delivered instead of being transcoded."""
+    return (
+        "ba[acodec!=none][ext=m4a]/"
+        "ba[acodec!=none][ext=mp3]/"
+        "ba[acodec!=none][ext=opus]/"
+        "ba[acodec!=none][ext=ogg]/"
+        "ba[acodec!=none]"
+    )
+
+
 def _muxed_selector(max_height):
     selectors = []
     for codec in ("[vcodec^=avc1]", ""):
@@ -205,6 +217,98 @@ def _host_of(url):
         return ""
 
 
+def _fetch_page(url):
+    from urllib.request import Request, urlopen
+
+    request = Request(
+        url,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/122.0 Safari/537.36"
+            ),
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+    )
+    with urlopen(request, timeout=20) as response:
+        return response.read(600000).decode("utf-8", "ignore")
+
+
+def _meta_content(html, prop):
+    import html as html_module
+
+    pattern = r'<meta[^>]+(?:property|name)=["\']%s["\'][^>]+content=["\']([^"\']*)' % (
+        re.escape(prop)
+    )
+    match = re.search(pattern, html, re.I)
+    if not match:
+        pattern = r'<meta[^>]+content=["\']([^"\']*)["\'][^>]+(?:property|name)=["\']%s["\']' % (
+            re.escape(prop)
+        )
+        match = re.search(pattern, html, re.I)
+    return html_module.unescape(match.group(1)).strip() if match else ""
+
+
+def _audio_search_query(url):
+    """Spotify and Apple Music only expose metadata. Turn that metadata into a
+    YouTube search so the audio can still be downloaded with tags and cover."""
+    host = _host_of(url)
+    if "spotify" not in host and "music.apple" not in host:
+        return None
+    try:
+        page = _fetch_page(url)
+    except Exception:
+        return None
+
+    title = _meta_content(page, "og:title") or _meta_content(page, "twitter:title")
+    description = _meta_content(page, "og:description")
+    title = re.sub(r"\s+on Apple Music.*$", "", title, flags=re.I)
+    title = re.sub(r"\s*[|\-]\s*Spotify$", "", title, flags=re.I).strip()
+
+    artist = ""
+    for separator in ("\u00b7", "|", "\u2013", "-"):
+        if separator in description:
+            artist = description.split(separator)[0].strip()
+            break
+    if not title:
+        return None
+    query = ("%s %s" % (artist, title)).strip()
+    return "ytsearch1:" + query
+
+
+def _download_thumbnail(info, output_dir):
+    """Saves the best available cover next to the track without FFmpeg."""
+    from urllib.request import Request, urlopen
+
+    candidates = []
+    for thumbnail in reversed((info or {}).get("thumbnails") or []):
+        url = (thumbnail or {}).get("url")
+        if url:
+            candidates.append(url)
+    url = (info or {}).get("thumbnail")
+    if url:
+        candidates.append(url)
+
+    for candidate in candidates:
+        path = os.path.join(output_dir, "cover-" + uuid.uuid4().hex + ".jpg")
+        try:
+            request = Request(candidate, headers={"User-Agent": "Mozilla/5.0"})
+            with urlopen(request, timeout=20) as response, open(path, "wb") as handle:
+                shutil.copyfileobj(response, handle)
+            if os.path.getsize(path) > 0:
+                return path
+            os.remove(path)
+        except Exception:
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except Exception:
+                pass
+    return None
+
+
+
 LOGIN_TOKENS = (
     "login required",
     "log in",
@@ -311,6 +415,21 @@ def _friendly_error(url, error):
             "Facebook did not return this video. Public posts work best; private or "
             "group posts need a one-time sign-in from Profile > App Settings > "
             "Sign in to sites."
+        )
+    if "spotify" in host:
+        return (
+            "Spotify did not return this track. Private playlists and region-locked "
+            "songs cannot be resolved. Try a public track link or a YouTube Music link."
+        )
+    if "music.apple" in host:
+        return (
+            "Apple Music did not return this track. Region-locked or subscription-only "
+            "songs cannot be resolved. Try a public track link or a YouTube Music link."
+        )
+    if "soundcloud" in host:
+        return (
+            "SoundCloud did not return this track. Private tracks need a signed-in "
+            "session from Profile > App Settings > Sign in to sites."
         )
     if needs_login:
         return (
@@ -575,6 +694,71 @@ def download_fallback(url, quality_height, output_directory, progress_callback, 
                 cookies_path=cookie_path,
             )
             return json.dumps(result)
+        except Exception:
+            _discard_job(job_dir)
+            raise
+
+    try:
+        return _run_with_cookies(run, cookies_path)
+    except Exception as error:
+        raise RuntimeError(_friendly_error(clean_url, error))
+
+
+def download_audio(url, output_directory, progress_callback, cookies_path=""):
+    """Audio-only path used by the Music section.
+
+    Spotify and Apple Music links are metadata-only for yt-dlp, so their title
+    and artist are resolved into a YouTube search first. The returned JSON has
+    the track, its tags, and a cover image path.
+    """
+    clean_url = str(url or "").strip()
+    if not clean_url:
+        raise ValueError("Paste a link before starting a download.")
+
+    os.makedirs(output_directory, exist_ok=True)
+    _notify(progress_callback, 0, "Finding the best audio...")
+
+    def run(cookie_path):
+        target = _audio_search_query(clean_url) or clean_url
+        job_dir = _new_job_dir(output_directory)
+        try:
+            path, info = _download_stream(
+                target,
+                _audio_download_selector(),
+                job_dir,
+                "audio",
+                output_directory,
+                progress_callback,
+                2,
+                96,
+                "Downloading audio...",
+                cookies_path=cookie_path,
+            )
+            info = info or {}
+            title = (info.get("title") or os.path.splitext(os.path.basename(path))[0]).strip()
+            artist = (
+                info.get("artist")
+                or info.get("creator")
+                or info.get("album_artist")
+                or info.get("uploader")
+                or ""
+            )
+            album = info.get("album") or "Singles"
+            extension = os.path.splitext(path)[1].lstrip(".").lower() or "m4a"
+            thumbnail = _download_thumbnail(info, output_directory)
+            _notify(progress_callback, 98, "Saving to your music...")
+            return json.dumps(
+                {
+                    "file_path": path,
+                    "job_dir": job_dir,
+                    "output_name": "%s.%s" % (_safe_name(title, "audio"), extension),
+                    "title": title,
+                    "artist": artist,
+                    "album": album,
+                    "thumbnail_path": thumbnail,
+                    "ext": extension,
+                }
+            )
         except Exception:
             _discard_job(job_dir)
             raise

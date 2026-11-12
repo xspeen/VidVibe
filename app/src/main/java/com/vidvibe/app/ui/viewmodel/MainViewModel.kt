@@ -10,6 +10,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.vidvibe.app.data.AppSettings
 import com.vidvibe.app.data.DeleteResult
+import com.vidvibe.app.data.Platform
 import com.vidvibe.app.data.Playlist
 import com.vidvibe.app.data.PlaylistStore
 import com.vidvibe.app.data.SettingsStore
@@ -17,6 +18,7 @@ import com.vidvibe.app.data.TrashStore
 import com.vidvibe.app.data.TrashedVideo
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.VideoRepository
+import com.vidvibe.app.download.AudioEngine
 import com.vidvibe.app.download.CookieStore
 import com.vidvibe.app.download.DownloadQueue
 import com.vidvibe.app.download.DownloadTask
@@ -31,6 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -39,6 +42,17 @@ sealed interface DownloadState {
     data class Running(val progress: Int, val status: String) : DownloadState
     data class Complete(val uri: Uri, val fileName: String) : DownloadState
     data class Error(val message: String) : DownloadState
+}
+
+/** Unseen counts shown as red badges on the library sections. */
+data class LibraryBadges(
+    val videos: Int = 0,
+    val folders: Int = 0,
+    val playlists: Int = 0,
+    val audio: Int = 0
+) {
+    val hasAny: Boolean
+        get() = videos > 0 || folders > 0 || playlists > 0 || audio > 0
 }
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -68,6 +82,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _videos = MutableStateFlow<List<VideoItem>>(emptyList())
     val videos: StateFlow<List<VideoItem>> = _videos.asStateFlow()
+
+    private val _audios = MutableStateFlow<List<VideoItem>>(emptyList())
+    val audios: StateFlow<List<VideoItem>> = _audios.asStateFlow()
+
+    private val _badges = MutableStateFlow(LibraryBadges())
+    val badges: StateFlow<LibraryBadges> = _badges.asStateFlow()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -120,7 +140,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                             Uri.EMPTY,
                             task.fileName ?: task.title
                         )
-                        loadVideosNow()
+                        noteNewDownload(task)
+                        loadLibraryNow()
                     }
 
                     QueueStatus.Failed -> {
@@ -143,23 +164,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             _isLoading.value = true
-            val all = repository.getVideos()
-            trashStore.prune(all.map { it.id }.toSet())
-            _videos.value = all.filterNot { it.id in trashStore.trashedIds }
+            loadLibraryNow()
             _isLoading.value = false
         }
+    }
+
+    fun markSectionSeen(section: Int) {
+        _badges.update {
+            when (section) {
+                0 -> it.copy(videos = 0)
+                1 -> it.copy(folders = 0)
+                2 -> it.copy(playlists = 0)
+                3 -> it.copy(audio = 0)
+                else -> it
+            }
+        }
+    }
+
+    private fun noteNewDownload(task: DownloadTask) {
+        _badges.update {
+            if (task.isAudio) {
+                it.copy(audio = (it.audio + 1).coerceAtMost(99))
+            } else {
+                it.copy(
+                    videos = (it.videos + 1).coerceAtMost(99),
+                    folders = (it.folders + 1).coerceAtMost(99),
+                    playlists = (it.playlists + 1).coerceAtMost(99)
+                )
+            }
+        }
+    }
+
+    fun playAudio(tracks: List<VideoItem>, index: Int) {
+        if (tracks.isEmpty()) return
+        AudioEngine.play(getApplication(), tracks, index.coerceIn(0, tracks.lastIndex))
     }
 
     fun moveToTrash(videos: List<VideoItem>) {
         if (videos.isEmpty()) return
         trashStore.add(videos)
-        viewModelScope.launch { loadVideosNow() }
+        viewModelScope.launch { loadLibraryNow() }
     }
 
     fun restoreFromTrash(ids: Set<Long>) {
         if (ids.isEmpty()) return
         trashStore.remove(ids)
-        viewModelScope.launch { loadVideosNow() }
+        viewModelScope.launch { loadLibraryNow() }
     }
 
     suspend fun deletePermanently(ids: Set<Long>): DeleteResult {
@@ -167,7 +217,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val entries = trashStore.entriesFor(ids)
         if (entries.isEmpty()) {
             trashStore.remove(ids)
-            loadVideosNow()
+            loadLibraryNow()
             return DeleteResult.Deleted
         }
 
@@ -175,7 +225,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         when (result) {
             is DeleteResult.Deleted -> {
                 trashStore.remove(ids)
-                loadVideosNow()
+                loadLibraryNow()
             }
             is DeleteResult.NeedsConfirmation -> {
                 pendingPermanentDeleteIds = ids
@@ -188,7 +238,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun deleteVideos(uris: List<Uri>): DeleteResult {
         val result = repository.deleteVideos(uris)
         if (result is DeleteResult.Deleted) {
-            loadVideosNow()
+            loadLibraryNow()
         }
         return result
     }
@@ -205,7 +255,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         pendingPermanentDeleteIds = emptySet()
     }
 
-    fun startDownload(url: String, qualityHeight: Int) {
+    fun startDownload(
+        url: String,
+        qualityHeight: Int,
+        isAudio: Boolean = Platform.fromUrl(url).audio
+    ) {
         val cleanUrl = url.trim()
         val parsed = runCatching { Uri.parse(cleanUrl) }.getOrNull()
         if (
@@ -214,7 +268,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             parsed.host.isNullOrBlank()
         ) {
             _downloadState.value = DownloadState.Error(
-                "Paste a valid http or https video link."
+                "Paste a valid http or https link."
             )
             return
         }
@@ -226,7 +280,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
-        val id = DownloadQueue.enqueue(getApplication(), cleanUrl, qualityHeight)
+        val id = DownloadQueue.enqueue(getApplication(), cleanUrl, qualityHeight, isAudio)
         activeDownloadId = id
         _downloadState.value = DownloadState.Running(0, "Queued")
     }
@@ -349,10 +403,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         playlistStore.deletePlaylist(playlistId)
     }
 
-    private suspend fun loadVideosNow() {
+    private suspend fun loadLibraryNow() {
         val all = repository.getVideos()
         trashStore.prune(all.map { it.id }.toSet())
         _videos.value = all.filterNot { it.id in trashStore.trashedIds }
+        _audios.value = repository.getAudios()
     }
 
     private fun isOnWifi(): Boolean {

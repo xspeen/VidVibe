@@ -4,11 +4,13 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
+import com.vidvibe.app.data.Platform
 import com.vidvibe.app.data.SettingsStore
 import com.vidvibe.app.data.VideoRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,8 +35,19 @@ data class DownloadTask(
     val state: QueueStatus = QueueStatus.Queued,
     val fileName: String? = null,
     val error: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
-)
+    val createdAt: Long = System.currentTimeMillis(),
+    val isAudio: Boolean = false,
+    val platform: Platform = Platform.Other,
+    val artist: String = "",
+    val album: String = "",
+    val albumArtPath: String? = null,
+    val completedAt: Long? = null
+) {
+    val isFinished: Boolean
+        get() = state == QueueStatus.Complete ||
+            state == QueueStatus.Failed ||
+            state == QueueStatus.Cancelled
+}
 
 /**
  * Process-wide download queue. A foreground service keeps this object alive
@@ -42,6 +55,9 @@ data class DownloadTask(
  * drawer, or the whole UI is gone. The UI only observes [tasks].
  */
 object DownloadQueue {
+
+    /** Finished cards linger briefly so the in-bar tick can play, then vanish. */
+    private const val AUTO_REMOVE_MS = 6200L
 
     private val _tasks = MutableStateFlow<List<DownloadTask>>(emptyList())
     val tasks: StateFlow<List<DownloadTask>> = _tasks.asStateFlow()
@@ -52,6 +68,7 @@ object DownloadQueue {
         Collections.synchronizedSet(mutableSetOf())
 
     private var worker: CoroutineScope? = null
+    private val cleanupScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val hasWork: Boolean
         get() = _tasks.value.any {
@@ -64,13 +81,21 @@ object DownloadQueue {
 
     fun queuedCount(): Int = _tasks.value.count { it.state == QueueStatus.Queued }
 
-    fun enqueue(context: Context, url: String, qualityHeight: Int): Long {
+    fun enqueue(
+        context: Context,
+        url: String,
+        qualityHeight: Int,
+        isAudio: Boolean = false
+    ): Long {
         val id = counter.incrementAndGet()
+        val platform = Platform.fromUrl(url)
         val task = DownloadTask(
             id = id,
             url = url.trim(),
             qualityHeight = qualityHeight,
-            title = titleFor(url)
+            title = titleFor(url, platform, isAudio),
+            isAudio = isAudio || platform.audio,
+            platform = platform
         )
         _tasks.update { it + task }
         DownloadService.start(context)
@@ -89,7 +114,8 @@ object DownloadQueue {
                         progress = 0,
                         status = "Queued",
                         error = null,
-                        fileName = null
+                        fileName = null,
+                        completedAt = null
                     )
                 } else {
                     it
@@ -120,10 +146,7 @@ object DownloadQueue {
         cancelRequests.remove(id)
         _tasks.update { list ->
             list.filterNot {
-                it.id == id &&
-                    (it.state == QueueStatus.Complete ||
-                        it.state == QueueStatus.Failed ||
-                        it.state == QueueStatus.Cancelled)
+                it.id == id && it.isFinished
             }
         }
     }
@@ -195,52 +218,27 @@ object DownloadQueue {
             }
 
             var lastPercent = -1
-            val file = manager.downloadVideo(start.url, start.qualityHeight) { percent, status ->
-                if (id in cancelRequests) return@downloadVideo
-                update(id) { it.copy(progress = percent, status = status) }
-                if (percent != lastPercent) {
-                    lastPercent = percent
-                    DownloadNotifications.postProgress(
-                        context,
-                        start.title,
-                        status,
-                        percent,
-                        queuedCount()
-                    )
+            val onProgress: (Int, String) -> Unit = { percent, status ->
+                if (id !in cancelRequests) {
+                    update(id) { it.copy(progress = percent, status = status) }
+                    if (percent != lastPercent) {
+                        lastPercent = percent
+                        DownloadNotifications.postProgress(
+                            context,
+                            start.title,
+                            status,
+                            percent,
+                            queuedCount()
+                        )
+                    }
                 }
             }
 
-            if (id in cancelRequests) {
-                runCatching { file.delete() }
-                update(id) {
-                    it.copy(state = QueueStatus.Cancelled, status = "Cancelled")
-                }
-                return
-            }
-
-            val galleryName = if (file.name.startsWith("VidVibe_")) {
-                file.name
+            if (start.isAudio) {
+                processAudio(context, id, start, manager, repository, onProgress)
             } else {
-                "VidVibe_${file.name}"
+                processVideo(context, id, start, manager, repository, onProgress)
             }
-            update(id) { it.copy(progress = 99, status = "Saving to gallery...") }
-            repository.saveToGallery(
-                file,
-                galleryName,
-                repository.mimeTypeFor(galleryName)
-            )
-            runCatching { file.delete() }
-
-            update(id) {
-                it.copy(
-                    state = QueueStatus.Complete,
-                    progress = 100,
-                    status = "Saved to your gallery",
-                    fileName = galleryName
-                )
-            }
-            val finished = _tasks.value.firstOrNull { it.id == id } ?: start
-            DownloadNotifications.notifyComplete(context, finished)
         } catch (error: Throwable) {
             val message = error.message
                 ?.substringBefore('\n')
@@ -262,6 +260,118 @@ object DownloadQueue {
         }
     }
 
+    private suspend fun processVideo(
+        context: Context,
+        id: Long,
+        start: DownloadTask,
+        manager: YtDlpManager,
+        repository: VideoRepository,
+        onProgress: (Int, String) -> Unit
+    ) {
+        val file = manager.downloadVideo(start.url, start.qualityHeight) { percent, status ->
+            onProgress(percent, status)
+        }
+
+        if (id in cancelRequests) {
+            runCatching { file.delete() }
+            update(id) { it.copy(state = QueueStatus.Cancelled, status = "Cancelled") }
+            return
+        }
+
+        val galleryName = if (file.name.startsWith("VidVibe_")) {
+            file.name
+        } else {
+            "VidVibe_${file.name}"
+        }
+        update(id) { it.copy(progress = 99, status = "Saving to gallery...") }
+        repository.saveToGallery(file, galleryName, repository.mimeTypeFor(galleryName))
+        runCatching { file.delete() }
+
+        complete(id, galleryName)
+    }
+
+    private suspend fun processAudio(
+        context: Context,
+        id: Long,
+        start: DownloadTask,
+        manager: YtDlpManager,
+        repository: VideoRepository,
+        onProgress: (Int, String) -> Unit
+    ) {
+        val audio = manager.downloadAudio(start.url) { percent, status ->
+            onProgress(percent, status)
+        }
+
+        if (id in cancelRequests) {
+            runCatching { audio.file.delete() }
+            runCatching { audio.thumbnail?.delete() }
+            update(id) { it.copy(state = QueueStatus.Cancelled, status = "Cancelled") }
+            return
+        }
+
+        val title = audio.title.ifBlank { start.title }
+        val extension = audio.file.extension.ifBlank { "m4a" }
+        val base = title
+            .replace(Regex("[^A-Za-z0-9._ -]+"), "_")
+            .trim(' ', '.', '_')
+            .take(70)
+            .ifBlank { "VidVibe_${System.currentTimeMillis()}" }
+        val galleryName = "$base.$extension"
+
+        update(id) { it.copy(progress = 99, status = "Saving to your music...") }
+        repository.saveAudioToGallery(
+            audio.file,
+            galleryName,
+            repository.mimeTypeFor(galleryName),
+            title = title,
+            artist = audio.artist,
+            album = audio.album
+        )
+        val artPath = repository.saveAlbumArt(audio.thumbnail, galleryName)
+        runCatching { audio.file.delete() }
+        runCatching { audio.thumbnail?.delete() }
+
+        complete(
+            id = id,
+            fileName = galleryName,
+            title = title,
+            artist = audio.artist,
+            album = audio.album,
+            albumArtPath = artPath
+        )
+    }
+
+    private fun complete(
+        id: Long,
+        fileName: String,
+        title: String? = null,
+        artist: String = "",
+        album: String = "",
+        albumArtPath: String? = null
+    ) {
+        val finishedAt = System.currentTimeMillis()
+        update(id) {
+            it.copy(
+                state = QueueStatus.Complete,
+                progress = 100,
+                status = "Saved",
+                fileName = fileName,
+                title = title?.takeIf { value -> value.isNotBlank() } ?: it.title,
+                artist = artist,
+                album = album,
+                albumArtPath = albumArtPath,
+                completedAt = finishedAt
+            )
+        }
+        cleanupScope.launch {
+            delay(AUTO_REMOVE_MS)
+            val task = _tasks.value.firstOrNull { it.id == id } ?: return@launch
+            if (task.state == QueueStatus.Complete && task.completedAt == finishedAt) {
+                remove(id)
+            }
+        }
+    }
+
     private fun update(id: Long, transform: (DownloadTask) -> DownloadTask) {
         _tasks.update { list ->
             list.map { if (it.id == id) transform(it) else it }
@@ -277,13 +387,20 @@ object DownloadQueue {
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
     }
 
-    private fun titleFor(url: String): String {
+    private fun titleFor(url: String, platform: Platform, isAudio: Boolean): String {
+        if (platform != Platform.Other) {
+            return if (isAudio || platform.audio) {
+                "${platform.label} audio"
+            } else {
+                "${platform.label} video"
+            }
+        }
         val host = runCatching { Uri.parse(url).host }.getOrNull().orEmpty()
             .removePrefix("www.")
-        return host.ifBlank { "Video" }
+        return host.ifBlank { if (isAudio) "Audio" else "Video" }
             .split('.')
             .firstOrNull()
             ?.replaceFirstChar { it.uppercase() }
-            ?: "Video"
+            ?: if (isAudio) "Audio" else "Video"
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -78,53 +80,186 @@ fun App(state: AppState, onQuit: () -> Unit) {
     var quality by remember { mutableStateOf(Quality.Best) }
     var libraryTick by remember { mutableIntStateOf(0) }
 
-    Box(Modifier.fillMaxSize().background(Bg)) {
-        Row(Modifier.fillMaxSize()) {
-            Sidebar(state, onQuit)
-            Box(Modifier.width(1.dp).fillMaxHeight().background(Stroke))
-            Column(Modifier.weight(1f).fillMaxHeight()) {
-                TopBar(state)
-                Box(Modifier.weight(1f).fillMaxWidth()) {
-                    when (state.page) {
-                        Page.Download -> DownloadPage(
-                            state = state,
-                            url = url,
-                            onUrlChange = { url = it },
-                            quality = quality,
-                            onQualityChange = { quality = it }
-                        )
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val compact = maxWidth < 1040.dp
+        val gutter = if (compact) 18.dp else 28.dp
+        val contentMax = when {
+            maxWidth >= 1680.dp -> 1320.dp
+            maxWidth >= 1360.dp -> 1160.dp
+            else -> maxWidth
+        }
 
-                        Page.Queue -> QueuePage(state)
-                        Page.Library -> LibraryPage(
-                            state = state,
-                            tick = libraryTick,
-                            onRefresh = { libraryTick++ }
-                        )
+        Box(Modifier.fillMaxSize()) {
+            DesktopBackdrop(compact = compact)
 
-                        Page.Settings -> SettingsPage(state)
+            Row(Modifier.fillMaxSize()) {
+                Sidebar(state, onQuit, compact = compact)
+                Box(Modifier.width(1.dp).fillMaxHeight().background(Stroke))
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    TopBar(state, compact = compact)
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                        Box(
+                            Modifier
+                                .widthIn(max = contentMax)
+                                .fillMaxWidth()
+                                .fillMaxHeight()
+                        ) {
+                            when (state.page) {
+                                Page.Download -> DownloadPage(
+                                    state = state,
+                                    url = url,
+                                    onUrlChange = { url = it },
+                                    quality = quality,
+                                    onQualityChange = { quality = it },
+                                    gutter = gutter
+                                )
+
+                                Page.Queue -> QueuePage(state, gutter)
+                                Page.Library -> LibraryPage(
+                                    state = state,
+                                    tick = libraryTick,
+                                    onRefresh = { libraryTick++ },
+                                    gutter = gutter
+                                )
+
+                                Page.Settings -> SettingsPage(state, gutter)
+                            }
+                        }
                     }
+                    StatusBar(state)
                 }
-                StatusBar(state)
+            }
+            Toast(state)
+        }
+    }
+}
+
+/**
+ * Adaptive wash behind the desktop chrome. The glow anchors move with the
+ * window aspect so a 16:9 laptop screen and a tall window both stay balanced.
+ */
+@Composable
+private fun DesktopBackdrop(compact: Boolean) {
+    Canvas(Modifier.fillMaxSize()) {
+        drawRect(
+            brush = Brush.linearGradient(
+                colors = listOf(Color(0xFF0B0B10), Bg, Color(0xFF060609)),
+                start = Offset.Zero,
+                end = Offset(size.width, size.height)
+            )
+        )
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(Green.copy(alpha = if (compact) 0.10f else 0.07f), Color.Transparent),
+                center = Offset(size.width * 0.16f, size.height * 0.04f),
+                radius = size.width * 0.62f
+            )
+        )
+        drawRect(
+            brush = Brush.radialGradient(
+                colors = listOf(Blue.copy(alpha = if (compact) 0.09f else 0.06f), Color.Transparent),
+                center = Offset(size.width * 0.92f, size.height * 0.90f),
+                radius = size.width * 0.58f
+            )
+        )
+        drawRect(
+            brush = Brush.verticalGradient(
+                colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.30f))
+            )
+        )
+    }
+}
+
+private enum class RailGlyph { Download, Queue, Library, Settings }
+
+private fun railGlyph(page: Page): RailGlyph = when (page) {
+    Page.Download -> RailGlyph.Download
+    Page.Queue -> RailGlyph.Queue
+    Page.Library -> RailGlyph.Library
+    Page.Settings -> RailGlyph.Settings
+}
+
+@Composable
+private fun RailIcon(glyph: RailGlyph, selected: Boolean) {
+    val tint = if (selected) Green else TextDim
+    Canvas(Modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val stroke = w * 0.085f
+        when (glyph) {
+            RailGlyph.Download -> {
+                drawLine(tint, Offset(w * 0.5f, h * 0.16f), Offset(w * 0.5f, h * 0.62f), stroke, androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.5f, h * 0.64f), Offset(w * 0.28f, h * 0.42f), stroke, androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.5f, h * 0.64f), Offset(w * 0.72f, h * 0.42f), stroke, androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.22f, h * 0.84f), Offset(w * 0.78f, h * 0.84f), stroke, androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+
+            RailGlyph.Queue -> {
+                listOf(0.28f, 0.5f, 0.72f).forEachIndexed { index, y ->
+                    drawCircle(tint, radius = stroke * 0.9f, center = Offset(w * 0.22f, h * y))
+                    drawLine(
+                        tint,
+                        Offset(w * 0.38f, h * y),
+                        Offset(w * (if (index == 2) 0.64f else 0.80f), h * y),
+                        stroke,
+                        androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                }
+            }
+
+            RailGlyph.Library -> {
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(w * 0.20f, h * 0.22f),
+                    size = androidx.compose.ui.geometry.Size(w * 0.60f, h * 0.56f),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.10f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)
+                )
+                drawLine(tint, Offset(w * 0.32f, h * 0.40f), Offset(w * 0.68f, h * 0.40f), stroke, androidx.compose.ui.graphics.StrokeCap.Round)
+                drawLine(tint, Offset(w * 0.32f, h * 0.56f), Offset(w * 0.56f, h * 0.56f), stroke, androidx.compose.ui.graphics.StrokeCap.Round)
+            }
+
+            RailGlyph.Settings -> {
+                drawCircle(
+                    color = tint,
+                    radius = w * 0.20f,
+                    center = Offset(w * 0.5f, h * 0.5f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(stroke)
+                )
+                repeat(6) { index ->
+                    val angle = (index / 6f) * (Math.PI * 2f).toFloat()
+                    val inner = Offset(
+                        w * 0.5f + kotlin.math.cos(angle) * w * 0.28f,
+                        h * 0.5f + kotlin.math.sin(angle) * h * 0.28f
+                    )
+                    val outer = Offset(
+                        w * 0.5f + kotlin.math.cos(angle) * w * 0.42f,
+                        h * 0.5f + kotlin.math.sin(angle) * h * 0.42f
+                    )
+                    drawLine(tint, inner, outer, stroke * 0.8f, androidx.compose.ui.graphics.StrokeCap.Round)
+                }
             }
         }
-        Toast(state)
     }
 }
 
 @Composable
-private fun Sidebar(state: AppState, onQuit: () -> Unit) {
+private fun Sidebar(state: AppState, onQuit: () -> Unit, compact: Boolean) {
+    val width = if (compact) 84.dp else 224.dp
+    val horizontal = if (compact) 10.dp else 14.dp
     Column(
         Modifier
-            .width(224.dp)
+            .width(width)
             .fillMaxHeight()
-            .background(Panel)
-            .padding(horizontal = 14.dp, vertical = 18.dp)
+            .background(Panel.copy(alpha = 0.92f))
+            .padding(horizontal = horizontal, vertical = 18.dp),
+        horizontalAlignment = if (compact) Alignment.CenterHorizontally else Alignment.Start
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 6.dp),
+            modifier = Modifier.padding(horizontal = if (compact) 0.dp else 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Canvas(Modifier.size(38.dp)) {
+            Canvas(Modifier.size(if (compact) 34.dp else 38.dp)) {
                 drawRoundRect(
                     color = Green,
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(11f, 11f)
@@ -137,68 +272,99 @@ private fun Sidebar(state: AppState, onQuit: () -> Unit) {
                 }
                 drawPath(triangle, Color(0xFF08080B))
             }
-            Spacer(Modifier.width(10.dp))
-            Column {
-                Text(
-                    text = "VidVibe",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextMain
-                )
-                Text(
-                    text = "Windows 2.8.3",
-                    fontSize = 10.sp,
-                    color = TextFaint
-                )
+            if (!compact) {
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "VidVibe",
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextMain
+                    )
+                    Text(
+                        text = "Windows 2.8.4",
+                        fontSize = 10.sp,
+                        color = TextFaint
+                    )
+                }
             }
         }
 
-        Spacer(Modifier.height(26.dp))
+        Spacer(Modifier.height(if (compact) 18.dp else 26.dp))
 
         Page.entries.forEach { page ->
             val selected = state.page == page
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 4.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(if (selected) Glass else Color.Transparent)
-                    .border(
-                        1.dp,
-                        if (selected) Color(0x2EFFFFFF) else Color.Transparent,
-                        RoundedCornerShape(12.dp)
-                    )
-                    .clickable { state.page = page }
-                    .padding(horizontal = 12.dp, vertical = 11.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            if (compact) {
                 Box(
-                    Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(if (selected) Green else Color.Transparent)
-                )
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = page.title,
-                    fontSize = 12.5.sp,
-                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                    color = if (selected) TextMain else TextDim,
-                    modifier = Modifier.weight(1f)
-                )
-                if (page == Page.Queue && state.activeCount > 0) {
+                    modifier = Modifier
+                        .padding(bottom = 6.dp)
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (selected) Glass else Color.Transparent)
+                        .border(
+                            1.dp,
+                            if (selected) Color(0x2EFFFFFF) else Color.Transparent,
+                            RoundedCornerShape(14.dp)
+                        )
+                        .clickable { state.page = page },
+                    contentAlignment = Alignment.Center
+                ) {
+                    RailIcon(railGlyph(page), selected)
+                    if (page == Page.Queue && state.activeCount > 0) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(7.dp)
+                                .size(7.dp)
+                                .clip(CircleShape)
+                                .background(Blue)
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 4.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (selected) Glass else Color.Transparent)
+                        .border(
+                            1.dp,
+                            if (selected) Color(0x2EFFFFFF) else Color.Transparent,
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable { state.page = page }
+                        .padding(horizontal = 12.dp, vertical = 11.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Blue.copy(alpha = 0.22f))
-                            .padding(horizontal = 7.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = state.activeCount.toString(),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Blue
-                        )
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (selected) Green else Color.Transparent)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = page.title,
+                        fontSize = 12.5.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (selected) TextMain else TextDim,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (page == Page.Queue && state.activeCount > 0) {
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Blue.copy(alpha = 0.22f))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = state.activeCount.toString(),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Blue
+                            )
+                        }
                     }
                 }
             }
@@ -207,72 +373,106 @@ private fun Sidebar(state: AppState, onQuit: () -> Unit) {
         Spacer(Modifier.weight(1f))
 
         val setup = state.engine
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Glass)
-                .border(1.dp, Stroke, RoundedCornerShape(14.dp))
-                .padding(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        if (compact) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.padding(bottom = 6.dp)
+            ) {
                 Box(
-                    Modifier
-                        .size(7.dp)
+                    modifier = Modifier
+                        .size(9.dp)
                         .clip(CircleShape)
                         .background(if (setup?.ready == true) Green else Amber)
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Text(
-                    text = if (setup?.ready == true) "Engine ready" else "Engine missing",
-                    fontSize = 10.5.sp,
+                    text = if (setup?.ready == true) "Ready" else "Setup",
+                    fontSize = 8.5.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextMain
+                    color = TextFaint
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Quit",
+                    fontSize = 9.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextDim,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onQuit)
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
                 )
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = setup?.message ?: "Checking...",
-                fontSize = 9.sp,
-                color = TextFaint,
-                lineHeight = 12.sp
-            )
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "Quit VidVibe",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = TextDim,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(onClick = onQuit)
-                    .padding(horizontal = 8.dp, vertical = 5.dp)
-            )
+        } else {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Glass)
+                    .border(1.dp, Stroke, RoundedCornerShape(14.dp))
+                    .padding(12.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(if (setup?.ready == true) Green else Amber)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = if (setup?.ready == true) "Engine ready" else "Engine missing",
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextMain
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = setup?.message ?: "Checking...",
+                    fontSize = 9.sp,
+                    color = TextFaint,
+                    lineHeight = 12.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Quit VidVibe",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextDim,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(onClick = onQuit)
+                        .padding(horizontal = 8.dp, vertical = 5.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun TopBar(state: AppState) {
+private fun TopBar(state: AppState, compact: Boolean = false) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(80.dp)
-            .padding(horizontal = 28.dp),
+            .height(if (compact) 68.dp else 80.dp)
+            .padding(horizontal = if (compact) 18.dp else 28.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = state.page.title,
-                fontSize = 21.sp,
+                fontSize = if (compact) 18.sp else 21.sp,
                 fontWeight = FontWeight.Bold,
                 color = TextMain
             )
-            Text(
-                text = state.page.subtitle,
-                fontSize = 11.sp,
-                color = TextDim
-            )
+            if (!compact) {
+                Text(
+                    text = state.page.subtitle,
+                    fontSize = 11.sp,
+                    color = TextDim
+                )
+            }
         }
         val setup = state.engine
         Row(
@@ -338,14 +538,15 @@ private fun DownloadPage(
     url: String,
     onUrlChange: (String) -> Unit,
     quality: Quality,
-    onQualityChange: (Quality) -> Unit
+    onQualityChange: (Quality) -> Unit,
+    gutter: androidx.compose.ui.unit.Dp = 28.dp
 ) {
     val ready = state.engine?.ready == true
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 28.dp, vertical = 6.dp)
+            .padding(horizontal = gutter, vertical = 6.dp)
     ) {
         GlassCard(Modifier.fillMaxWidth()) {
             Text(
@@ -513,11 +714,11 @@ private fun RecentRow(task: DownloadTask, onOpen: () -> Unit) {
 }
 
 @Composable
-private fun QueuePage(state: AppState) {
+private fun QueuePage(state: AppState, gutter: androidx.compose.ui.unit.Dp = 28.dp) {
     Column(
         Modifier
             .fillMaxSize()
-            .padding(horizontal = 28.dp, vertical = 6.dp)
+            .padding(horizontal = gutter, vertical = 6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -650,7 +851,12 @@ private fun TaskCard(state: AppState, task: DownloadTask) {
 }
 
 @Composable
-private fun LibraryPage(state: AppState, tick: Int, onRefresh: () -> Unit) {
+private fun LibraryPage(
+    state: AppState,
+    tick: Int,
+    onRefresh: () -> Unit,
+    gutter: androidx.compose.ui.unit.Dp = 28.dp
+) {
     val completed = state.tasks.count { it.status == TaskStatus.Complete }
     val files = remember(tick, completed, state.settings.downloadDir) {
         scanLibrary(state.settings.downloadDir)
@@ -659,7 +865,7 @@ private fun LibraryPage(state: AppState, tick: Int, onRefresh: () -> Unit) {
     Column(
         Modifier
             .fillMaxSize()
-            .padding(horizontal = 28.dp, vertical = 6.dp)
+            .padding(horizontal = gutter, vertical = 6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -752,13 +958,13 @@ private fun LibraryRow(file: File) {
 }
 
 @Composable
-private fun SettingsPage(state: AppState) {
+private fun SettingsPage(state: AppState, gutter: androidx.compose.ui.unit.Dp = 28.dp) {
     val setup = state.engine
     Column(
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 28.dp, vertical = 6.dp)
+            .padding(horizontal = gutter, vertical = 6.dp)
     ) {
         SectionHeader("Storage", "Where finished files are written")
         GlassCard(Modifier.fillMaxWidth()) {
@@ -923,7 +1129,7 @@ private fun SettingsPage(state: AppState) {
         SectionHeader("About", "VidVibe for Windows")
         GlassCard(Modifier.fillMaxWidth()) {
             Text(
-                text = "VidVibe 2.8.3",
+                text = "VidVibe 2.8.4",
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = TextMain

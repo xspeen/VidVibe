@@ -16,7 +16,11 @@ data class VideoItem(
     val sizeBytes: Long,
     val relativePath: String,
     val width: Int,
-    val height: Int
+    val height: Int,
+    val isAudio: Boolean = false,
+    val artist: String = "",
+    val album: String = "",
+    val albumArtUri: Uri? = null
 ) {
     val durationLabel: String
         get() = formatDuration(durationMs)

@@ -40,10 +40,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.BrightnessHigh
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.FastForward
 import androidx.compose.material.icons.outlined.FastRewind
 import androidx.compose.material.icons.outlined.FitScreen
 import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Replay
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SkipNext
@@ -67,6 +70,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -131,6 +135,9 @@ fun VideoPlayerScreen(
     var gestureTick by remember { mutableIntStateOf(0) }
 
     var ended by remember(video.uri) { mutableStateOf(false) }
+    var isPlaying by remember(video.uri) { mutableStateOf(true) }
+    var showPlayPause by remember { mutableStateOf(false) }
+    var playPauseTick by remember { mutableIntStateOf(0) }
     var seekHintSeconds by remember { mutableStateOf<Int?>(null) }
     // Wide screens start zoomed so the video fills the display instead of
     // sitting inside black bars. Phones keep the whole frame visible.
@@ -188,12 +195,37 @@ fun VideoPlayerScreen(
         ended = false
     }
 
+    fun togglePlayPause() {
+        if (exoPlayer.isPlaying) {
+            exoPlayer.pause()
+        } else {
+            if (ended) {
+                exoPlayer.seekTo(0L)
+                ended = false
+            }
+            exoPlayer.play()
+        }
+        showPlayPause = true
+        playPauseTick++
+    }
+
+    LaunchedEffect(playPauseTick) {
+        if (showPlayPause) {
+            delay(700)
+            showPlayPause = false
+        }
+    }
+
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_ENDED) {
                     ended = true
                 }
+            }
+
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
             }
         }
         exoPlayer.addListener(listener)
@@ -280,8 +312,8 @@ fun VideoPlayerScreen(
                             dragTotal += dragAmount
                         },
                         onDragEnd = {
-                            if (dragTotal <= -90f && hasNext) currentOnNext()
-                            if (dragTotal >= 90f && hasPrevious) currentOnPrevious()
+                            if (dragTotal >= 90f && hasNext) currentOnNext()
+                            if (dragTotal <= -90f && hasPrevious) currentOnPrevious()
                             dragTotal = 0f
                         },
                         onDragCancel = { dragTotal = 0f }
@@ -317,8 +349,8 @@ fun VideoPlayerScreen(
                             dragTotal += dragAmount
                         },
                         onDragEnd = {
-                            if (dragTotal <= -90f && hasNext) currentOnNext()
-                            if (dragTotal >= 90f && hasPrevious) currentOnPrevious()
+                            if (dragTotal >= 90f && hasNext) currentOnNext()
+                            if (dragTotal <= -90f && hasPrevious) currentOnPrevious()
                             dragTotal = 0f
                         },
                         onDragCancel = { dragTotal = 0f }
@@ -344,6 +376,72 @@ fun VideoPlayerScreen(
                     )
                 }
         )
+
+        // Centre third: tap to pause or play, horizontal swipe for the queue.
+        Box(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth(0.36f)
+                .fillMaxHeight(0.62f)
+                .pointerInput(hasNext, hasPrevious) {
+                    var dragTotal = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragTotal = 0f },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragTotal += dragAmount
+                        },
+                        onDragEnd = {
+                            if (dragTotal >= 90f && hasNext) currentOnNext()
+                            if (dragTotal <= -90f && hasPrevious) currentOnPrevious()
+                            dragTotal = 0f
+                        },
+                        onDragCancel = { dragTotal = 0f }
+                    )
+                }
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { togglePlayPause() })
+                }
+        )
+
+        AnimatedVisibility(
+            visible = showPlayPause,
+            enter = fadeIn(tween(110)) + scaleIn(
+                initialScale = 0.6f,
+                animationSpec = spring(dampingRatio = 0.5f, stiffness = 620f)
+            ),
+            exit = fadeOut(tween(220)) + scaleOut(
+                targetScale = 1.22f,
+                animationSpec = tween(220)
+            ),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .shadow(
+                        elevation = 20.dp,
+                        shape = CircleShape,
+                        ambientColor = PlayerGreen,
+                        spotColor = PlayerGreen.copy(alpha = 0.45f)
+                    )
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.58f))
+                    .border(1.dp, Color.White.copy(alpha = 0.24f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying) {
+                        Icons.Outlined.Pause
+                    } else {
+                        Icons.Outlined.PlayArrow
+                    },
+                    contentDescription = if (isPlaying) "Pause" else "Play",
+                    tint = Color.White,
+                    modifier = Modifier.size(34.dp)
+                )
+            }
+        }
 
         AnimatedVisibility(
             visible = showGestureOverlay,
@@ -371,14 +469,14 @@ fun VideoPlayerScreen(
 
         AnimatedVisibility(
             visible = ended,
-            enter = fadeIn(tween(220)),
+            enter = fadeIn(tween(240)),
             exit = fadeOut(tween(180)),
             modifier = Modifier.fillMaxSize()
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.62f))
+                    .background(Color.Black.copy(alpha = 0.58f))
                     .pointerInput(ended, hasNext, hasPrevious) {
                         var dragTotal = 0f
                         detectHorizontalDragGestures(
@@ -388,8 +486,8 @@ fun VideoPlayerScreen(
                                 dragTotal += dragAmount
                             },
                             onDragEnd = {
-                                if (dragTotal <= -90f && hasNext) currentOnNext()
-                                if (dragTotal >= 90f && hasPrevious) currentOnPrevious()
+                                if (dragTotal >= 90f && hasNext) currentOnNext()
+                                if (dragTotal <= -90f && hasPrevious) currentOnPrevious()
                                 dragTotal = 0f
                             },
                             onDragCancel = { dragTotal = 0f }
@@ -397,62 +495,14 @@ fun VideoPlayerScreen(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    modifier = Modifier
-                        .padding(horizontal = 26.dp)
-                        .fillMaxWidth()
-                        .widthIn(max = 440.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "Finished",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White.copy(alpha = 0.6f)
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = video.displayName,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = TextAlign.Center,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = when {
-                            hasNext -> "Swipe left or tap Next for the next video"
-                            hasPrevious -> "Swipe right or tap Previous to go back"
-                            else -> "That was the last video in this list"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.62f),
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(22.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        PlayerActionPill(
-                            icon = Icons.Outlined.SkipPrevious,
-                            label = "Previous",
-                            enabled = hasPrevious,
-                            onClick = { currentOnPrevious() }
-                        )
-                        PlayerActionPill(
-                            icon = if (hasNext) {
-                                Icons.Outlined.SkipNext
-                            } else {
-                                Icons.Outlined.Replay
-                            },
-                            label = if (hasNext) "Next" else "Replay",
-                            enabled = true,
-                            primary = true,
-                            onClick = {
-                                if (hasNext) currentOnNext() else replay()
-                            }
-                        )
-                    }
-                }
+                PlayerEndedCard(
+                    title = video.displayName,
+                    hasNext = hasNext,
+                    hasPrevious = hasPrevious,
+                    onPrevious = { currentOnPrevious() },
+                    onNext = { currentOnNext() },
+                    onReplay = { replay() }
+                )
             }
         }
 
@@ -551,31 +601,148 @@ fun VideoPlayerScreen(
 }
 
 @Composable
-private fun PlayerActionPill(
+private fun PlayerEndedCard(
+    title: String,
+    hasNext: Boolean,
+    hasPrevious: Boolean,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    onReplay: () -> Unit
+) {
+    val cardShape = RoundedCornerShape(32.dp)
+    Column(
+        modifier = Modifier
+            .padding(horizontal = 24.dp)
+            .fillMaxWidth()
+            .widthIn(max = 420.dp)
+            .shadow(
+                elevation = 28.dp,
+                shape = cardShape,
+                ambientColor = PlayerGreen,
+                spotColor = PlayerGreen.copy(alpha = 0.30f)
+            )
+            .clip(cardShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF2B2B33), Color(0xFF15151A))
+                )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.10f), cardShape)
+            .padding(horizontal = 22.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(58.dp)
+                .shadow(
+                    elevation = 16.dp,
+                    shape = CircleShape,
+                    ambientColor = PlayerGreen,
+                    spotColor = PlayerGreen
+                )
+                .clip(CircleShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(Color(0xFF43E884), Color(0xFF1C9E49))
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.30f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(
+            text = "Finished",
+            style = MaterialTheme.typography.labelMedium,
+            color = Color.White.copy(alpha = 0.58f)
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            color = Color.White,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = when {
+                hasNext && hasPrevious -> "Swipe right for the next video, left to go back"
+                hasNext -> "Swipe right for the next video"
+                hasPrevious -> "Swipe left to go back"
+                else -> "That was the last video in this list"
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = Color.White.copy(alpha = 0.60f),
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(22.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            PlayerClayPill(
+                icon = Icons.Outlined.SkipPrevious,
+                label = "Previous",
+                enabled = hasPrevious,
+                onClick = onPrevious
+            )
+            PlayerClayPill(
+                icon = if (hasNext) Icons.Outlined.SkipNext else Icons.Outlined.Replay,
+                label = if (hasNext) "Next" else "Replay",
+                enabled = true,
+                primary = true,
+                onClick = { if (hasNext) onNext() else onReplay() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlayerClayPill(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     enabled: Boolean,
     primary: Boolean = false,
     onClick: () -> Unit
 ) {
+    val shape = RoundedCornerShape(16.dp)
     Box(
         modifier = Modifier
-            .height(44.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .height(46.dp)
+            .shadow(
+                elevation = if (enabled && primary) 12.dp else 0.dp,
+                shape = shape,
+                ambientColor = PlayerGreen,
+                spotColor = PlayerGreen.copy(alpha = 0.5f)
+            )
+            .clip(shape)
             .background(
                 when {
-                    !enabled -> Color.White.copy(alpha = 0.08f)
-                    primary -> Color.White
-                    else -> Color.White.copy(alpha = 0.10f)
+                    !enabled -> Brush.verticalGradient(
+                        listOf(Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.06f))
+                    )
+                    primary -> Brush.verticalGradient(
+                        listOf(Color(0xFF3BDB78), Color(0xFF1F9E4A))
+                    )
+                    else -> Brush.verticalGradient(
+                        listOf(Color(0xFF3A3A44), Color(0xFF23232B))
+                    )
                 }
             )
             .border(
                 1.dp,
-                if (primary) Color.Transparent else Color.White.copy(alpha = 0.20f),
-                RoundedCornerShape(14.dp)
+                if (primary) Color.White.copy(alpha = 0.28f)
+                else Color.White.copy(alpha = 0.12f),
+                shape
             )
             .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 18.dp),
         contentAlignment = Alignment.Center
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -584,7 +751,6 @@ private fun PlayerActionPill(
                 contentDescription = null,
                 tint = when {
                     !enabled -> Color.White.copy(alpha = 0.30f)
-                    primary -> Color.Black
                     else -> Color.White
                 },
                 modifier = Modifier.size(17.dp)
@@ -596,7 +762,6 @@ private fun PlayerActionPill(
                 fontWeight = FontWeight.SemiBold,
                 color = when {
                     !enabled -> Color.White.copy(alpha = 0.30f)
-                    primary -> Color.Black
                     else -> Color.White
                 }
             )

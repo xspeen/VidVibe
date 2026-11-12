@@ -61,6 +61,8 @@ import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.PlaylistPlay
 import androidx.compose.material.icons.outlined.Search
@@ -109,6 +111,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.vidvibe.app.data.Playlist
+import com.vidvibe.app.data.Platform
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.ui.components.ClassicLoader
 import com.vidvibe.app.ui.components.FloatingMenuColor
@@ -118,6 +121,7 @@ import com.vidvibe.app.ui.components.FloatingPanel
 import com.vidvibe.app.ui.components.FluidBackground
 import com.vidvibe.app.ui.components.PlaylistNameDialog
 import com.vidvibe.app.ui.components.PlaylistPickerDialog
+import com.vidvibe.app.ui.components.PlatformLogo
 import com.vidvibe.app.ui.components.PullToRefresh
 import com.vidvibe.app.ui.components.VidVibeFloatingMenu
 import com.vidvibe.app.ui.theme.VidVibeRed
@@ -126,6 +130,7 @@ import com.vidvibe.app.ui.theme.VidVibeText
 import com.vidvibe.app.ui.theme.VidVibeTextSecondary
 import com.vidvibe.app.ui.theme.VidVibeTextTertiary
 import com.vidvibe.app.ui.theme.LocalAppTextColor
+import com.vidvibe.app.ui.viewmodel.LibraryBadges
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -141,8 +146,12 @@ private val GlassBorder = Color.White.copy(alpha = 0.10f)
 @Composable
 fun LocalScreen(
     videos: List<VideoItem>,
+    audios: List<VideoItem> = emptyList(),
     isLoading: Boolean,
     playlists: List<Playlist>,
+    badges: LibraryBadges = LibraryBadges(),
+    onSectionSeen: (Int) -> Unit = {},
+    onOpenAudio: (List<VideoItem>, Int) -> Unit = { _, _ -> },
     onOpenVideo: (List<VideoItem>, Int) -> Unit,
     onRefresh: () -> Unit,
     onSelectionModeChanged: (Boolean) -> Unit,
@@ -184,6 +193,13 @@ fun LocalScreen(
 
     DisposableEffect(Unit) {
         onDispose { onTextInputActiveChanged(false) }
+    }
+
+    // A section the user is looking at is already seen: clear its badge as
+    // soon as a download lands while the list is on screen.
+    LaunchedEffect(currentTab, badges.videos, badges.audio) {
+        if (currentTab == 0 && badges.videos > 0) onSectionSeen(0)
+        if (currentTab == 3 && badges.audio > 0) onSectionSeen(3)
     }
 
     val activePlaylist = playlists.firstOrNull { it.id == playlistFilterId }
@@ -240,6 +256,7 @@ fun LocalScreen(
     }
 
     fun selectTab(index: Int) {
+        onSectionSeen(index)
         if (index == currentTab) return
         currentTab = index
         if (index != 0) {
@@ -315,6 +332,7 @@ fun LocalScreen(
 
             LocalTabBar(
                 selectedTab = currentTab,
+                badges = badges,
                 onSelect = { selectTab(it) }
             )
 
@@ -333,7 +351,7 @@ fun LocalScreen(
                             },
                             onDragEnd = {
                                 when {
-                                    dragTotal <= -swipeThreshold && currentTab < 2 ->
+                                    dragTotal <= -swipeThreshold && currentTab < 3 ->
                                         selectTab(currentTab + 1)
                                     dragTotal >= swipeThreshold && currentTab > 0 ->
                                         selectTab(currentTab - 1)
@@ -388,6 +406,7 @@ fun LocalScreen(
                             1 -> FoldersPane(
                                 videos = videos,
                                 onOpenFolder = { folder ->
+                                    onSectionSeen(0)
                                     folderFilter = folder
                                     playlistFilterId = null
                                     currentTab = 0
@@ -400,11 +419,17 @@ fun LocalScreen(
                                     showCreatePlaylist = true
                                 },
                                 onOpenPlaylist = { playlist ->
+                                    onSectionSeen(0)
                                     playlistFilterId = playlist.id
                                     folderFilter = null
                                     currentTab = 0
                                 },
                                 onDeletePlaylist = { playlistPendingDelete = it }
+                            )
+                            3 -> AudioPane(
+                                audios = audios,
+                                isLoading = isLoading,
+                                onOpenAudio = onOpenAudio
                             )
                         }
                     }
@@ -692,9 +717,11 @@ private fun LocalHero(
 @Composable
 private fun LocalTabBar(
     selectedTab: Int,
+    badges: LibraryBadges,
     onSelect: (Int) -> Unit
 ) {
-    val labels = listOf("Videos", "Folders", "Playlists")
+    val labels = listOf("Videos", "Folders", "Playlists", "Audio")
+    val counts = listOf(badges.videos, badges.folders, badges.playlists, badges.audio)
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -742,19 +769,206 @@ private fun LocalTabBar(
                             .clickable { onSelect(index) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = label,
-                            fontSize = 13.sp,
-                            color = if (selectedTab == index) LocalAppTextColor.current else GlassText3,
-                            fontWeight = if (selectedTab == index) FontWeight.SemiBold
-                            else FontWeight.Medium
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = label,
+                                fontSize = 12.sp,
+                                color = if (selectedTab == index) LocalAppTextColor.current
+                                else GlassText3,
+                                fontWeight = if (selectedTab == index) FontWeight.SemiBold
+                                else FontWeight.Medium,
+                                maxLines = 1
+                            )
+                            TabBadge(count = counts[index])
+                        }
                     }
                 }
             }
         }
     }
 }
+
+@Composable
+private fun TabBadge(count: Int) {
+    AnimatedVisibility(
+        visible = count > 0,
+        enter = fadeIn(tween(180)) + scaleIn(
+            initialScale = 0.4f,
+            animationSpec = androidx.compose.animation.core.spring(
+                dampingRatio = 0.45f,
+                stiffness = 520f
+            )
+        ),
+        exit = fadeOut(tween(260)) + scaleOut(
+            targetScale = 1.9f,
+            animationSpec = tween(260, easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f))
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(start = 4.dp)
+                .height(16.dp)
+                .clip(CircleShape)
+                .background(VidVibeRed)
+                .padding(horizontal = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = if (count > 9) "9+" else count.toString(),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+    }
+}
+
+@Composable
+private fun AudioPane(
+    audios: List<VideoItem>,
+    isLoading: Boolean,
+    onOpenAudio: (List<VideoItem>, Int) -> Unit
+) {
+    if (isLoading && audios.isEmpty()) {
+        LoadingPane()
+        return
+    }
+    if (audios.isEmpty()) {
+        EmptyPane(
+            icon = Icons.Outlined.MusicNote,
+            title = "No music yet",
+            subtitle = "Paste a YouTube Music, Spotify, Apple Music or SoundCloud link to save audio here."
+        )
+        return
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .widthIn(max = 720.dp)
+                .fillMaxWidth()
+                .fillMaxHeight(),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 160.dp)
+        ) {
+            item(key = "audio-header") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.GraphicEq,
+                        contentDescription = null,
+                        tint = GlassBlue,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "${audios.size} ${if (audios.size == 1) "track" else "tracks"} · saved in Music/VidVibe",
+                        fontSize = 11.sp,
+                        color = GlassText3
+                    )
+                }
+            }
+            items(audios, key = { it.id }) { track ->
+                AudioRow(
+                    track = track,
+                    onClick = {
+                        val index = audios.indexOfFirst { it.id == track.id }
+                        onOpenAudio(audios, index.coerceAtLeast(0))
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AudioRow(
+    track: VideoItem,
+    onClick: () -> Unit
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) 0.985f else 1f,
+        animationSpec = tween(120),
+        label = "audio-row-scale"
+    )
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp)
+            .padding(bottom = 4.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(GlassSurface),
+            contentAlignment = Alignment.Center
+        ) {
+            if (track.albumArtUri != null) {
+                AsyncImage(
+                    model = track.albumArtUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.MusicNote,
+                    contentDescription = null,
+                    tint = GlassText2,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = track.displayName,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = LocalAppTextColor.current,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(Modifier.height(3.dp))
+            Text(
+                text = track.artist.ifBlank { "Unknown artist" },
+                fontSize = 11.sp,
+                color = GlassText3,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = track.durationLabel,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            color = GlassText3
+        )
+    }
+}
+
 
 @Composable
 private fun VideosPane(

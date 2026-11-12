@@ -8,6 +8,7 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -15,7 +16,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.data.formatFileSize
+import com.vidvibe.app.download.AudioEngine
 import com.vidvibe.app.download.DownloadTask
 import com.vidvibe.app.download.QueueStatus
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
@@ -48,6 +52,8 @@ import com.vidvibe.app.ui.components.CustomBottomNav
 import com.vidvibe.app.ui.components.DownloadSavedCard
 import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
 import com.vidvibe.app.ui.components.VidVibeToastHost
+import com.vidvibe.app.ui.screens.AudioMiniPlayer
+import com.vidvibe.app.ui.screens.AudioPlayerScreen
 import com.vidvibe.app.ui.screens.DownloaderScreen
 import com.vidvibe.app.ui.screens.LocalScreen
 import com.vidvibe.app.ui.screens.MeScreen
@@ -65,6 +71,8 @@ fun VidVibeApp(viewModel: MainViewModel) {
 
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val videos by viewModel.videos.collectAsStateWithLifecycle()
+    val audios by viewModel.audios.collectAsStateWithLifecycle()
+    val badges by viewModel.badges.collectAsStateWithLifecycle()
     val playlists by viewModel.playlists.collectAsStateWithLifecycle()
     val trash by viewModel.trash.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
@@ -77,6 +85,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
     var selectedTab by rememberSaveable { mutableStateOf(0) }
     var playerQueue by remember { mutableStateOf<List<VideoItem>>(emptyList()) }
     var playerIndex by remember { mutableIntStateOf(-1) }
+    var showAudioPlayer by remember { mutableStateOf(false) }
     var showTour by remember { mutableStateOf(false) }
     var selectionActive by remember { mutableStateOf(false) }
     var downloaderFullScreen by remember { mutableStateOf(false) }
@@ -134,12 +143,14 @@ fun VidVibeApp(viewModel: MainViewModel) {
         }
     }
 
-    BackHandler(enabled = selectedTab != 0 && playerVideo == null && !showTour) {
+    BackHandler(
+        enabled = selectedTab != 0 && playerVideo == null && !showTour && !showAudioPlayer
+    ) {
         selectedTab = 0
     }
 
     val appBackground = LocalAppBackground.current
-    val navVisible = playerVideo == null && !showTour
+    val navVisible = playerVideo == null && !showTour && !showAudioPlayer
     val navHidden = selectionActive || downloaderFullScreen || profileSubPage
     val navHideFraction = if (selectionActive || profileSubPage) 2f else 1.5f
 
@@ -153,8 +164,15 @@ fun VidVibeApp(viewModel: MainViewModel) {
                 when (tab) {
                     0 -> LocalScreen(
                         videos = videos,
+                        audios = audios,
                         isLoading = isLoading,
                         playlists = playlists,
+                        badges = badges,
+                        onSectionSeen = viewModel::markSectionSeen,
+                        onOpenAudio = { tracks, index ->
+                            viewModel.playAudio(tracks, index)
+                            showAudioPlayer = true
+                        },
                         onOpenVideo = { queue, index ->
                             playerQueue = queue
                             playerIndex = index
@@ -312,21 +330,63 @@ fun VidVibeApp(viewModel: MainViewModel) {
             )
         }
 
-        playerVideo?.let { video ->
-            VideoPlayerScreen(
-                video = video,
-                hasNext = playerIndex < playerQueue.lastIndex,
-                hasPrevious = playerIndex > 0,
-                onNext = {
-                    if (playerIndex < playerQueue.lastIndex) playerIndex += 1
-                },
-                onPrevious = {
-                    if (playerIndex > 0) playerIndex -= 1
-                },
-                onBack = {
-                    playerQueue = emptyList()
-                    playerIndex = -1
-                }
+        AnimatedVisibility(
+            visible = playerVideo != null,
+            enter = fadeIn(tween(220, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))) +
+                scaleIn(
+                    initialScale = 0.94f,
+                    animationSpec = tween(320, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
+                ),
+            exit = fadeOut(tween(180)) + scaleOut(targetScale = 0.96f, animationSpec = tween(200))
+        ) {
+            playerVideo?.let { video ->
+                VideoPlayerScreen(
+                    video = video,
+                    hasNext = playerIndex < playerQueue.lastIndex,
+                    hasPrevious = playerIndex > 0,
+                    onNext = {
+                        if (playerIndex < playerQueue.lastIndex) playerIndex += 1
+                    },
+                    onPrevious = {
+                        if (playerIndex > 0) playerIndex -= 1
+                    },
+                    onBack = {
+                        playerQueue = emptyList()
+                        playerIndex = -1
+                    }
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showAudioPlayer,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(360, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f))
+            ) + fadeIn(tween(200)),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(300, easing = CubicBezierEasing(0.4f, 0f, 0.2f, 1f))
+            ) + fadeOut(tween(200))
+        ) {
+            if (showAudioPlayer) {
+                AudioPlayerScreen(onBack = { showAudioPlayer = false })
+            }
+        }
+
+        val audioState by AudioEngine.state.collectAsStateWithLifecycle()
+        if (
+            audioState.current != null &&
+            !showAudioPlayer &&
+            playerVideo == null &&
+            !showTour
+        ) {
+            AudioMiniPlayer(
+                onOpen = { showAudioPlayer = true },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(bottom = if (navVisible && !navHidden) 92.dp else 14.dp)
             )
         }
 
