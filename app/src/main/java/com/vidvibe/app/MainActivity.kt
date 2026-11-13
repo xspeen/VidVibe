@@ -17,6 +17,7 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,6 +49,7 @@ import com.vidvibe.app.ui.theme.TextTone
 import com.vidvibe.app.ui.theme.VidVibeTheme
 import com.vidvibe.app.ui.theme.backgroundFor
 import com.vidvibe.app.ui.viewmodel.MainViewModel
+import com.vidvibe.app.ui.components.LocalMeshEnabled
 
 class MainActivity : FragmentActivity() {
 
@@ -140,6 +142,11 @@ class MainActivity : FragmentActivity() {
                 ),
                 iconPack = iconPack
             ) {
+                CompositionLocalProvider(
+                    // The mesh layer is drawn at the app root; screens check
+                    // this before painting their own flat background over it.
+                    LocalMeshEnabled provides settings.meshGradient
+                ) {
                 Box(Modifier.fillMaxSize().background(appBackground)) {
                     when {
                         !settingsLoaded -> Unit
@@ -162,6 +169,7 @@ class MainActivity : FragmentActivity() {
                         else -> VidVibeApp(viewModel = viewModel)
                     }
                 }
+                }
             }
         }
     }
@@ -179,7 +187,10 @@ class MainActivity : FragmentActivity() {
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> {
                 arrayOf(
                     Manifest.permission.READ_MEDIA_VIDEO,
-                    Manifest.permission.READ_MEDIA_AUDIO
+                    Manifest.permission.READ_MEDIA_AUDIO,
+                    // Required from 13 onward or the playback notification and
+                    // the lock-screen transport controls never appear.
+                    Manifest.permission.POST_NOTIFICATIONS
                 )
             }
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> {
@@ -198,7 +209,8 @@ class MainActivity : FragmentActivity() {
         val permissions = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             listOf(
                 Manifest.permission.READ_MEDIA_VIDEO,
-                Manifest.permission.READ_MEDIA_AUDIO
+                Manifest.permission.READ_MEDIA_AUDIO,
+                Manifest.permission.POST_NOTIFICATIONS
             )
         } else {
             listOf(Manifest.permission.READ_EXTERNAL_STORAGE)

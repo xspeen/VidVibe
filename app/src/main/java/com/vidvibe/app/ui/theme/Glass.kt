@@ -38,14 +38,14 @@ data class GlassStyle(
         fun from(palette: MenuPalette, liquid: Boolean): GlassStyle {
             val base = palette.background
             return GlassStyle(
-                // 2.8.4 deliberately tones the frosted look down: surfaces are
-                // more solid, the sheen is softer and the edges no longer read
-                // as a second layer of glass over the content.
-                bodyTop = base.copy(alpha = if (liquid) 0.97f else 1f),
-                bodyBottom = base.copy(alpha = if (liquid) 0.92f else 1f),
-                stroke = palette.highlight.copy(alpha = if (liquid) 0.15f else 0.08f),
-                sheen = palette.highlight.copy(alpha = if (liquid) 0.15f else 0.08f),
-                glow = palette.highlight.copy(alpha = if (liquid) 0.05f else 0.02f),
+                // 2.8.5: genuinely frosted glass. Panels are translucent so
+                // the blurred, colour-sampled album art behind them shows
+                // through, while the stroke and sheen keep text readable.
+                bodyTop = base.copy(alpha = if (liquid) 0.62f else 1f),
+                bodyBottom = base.copy(alpha = if (liquid) 0.48f else 1f),
+                stroke = palette.highlight.copy(alpha = if (liquid) 0.22f else 0.08f),
+                sheen = palette.highlight.copy(alpha = if (liquid) 0.24f else 0.08f),
+                glow = palette.highlight.copy(alpha = if (liquid) 0.08f else 0.02f),
                 indicator = palette.highlight.copy(alpha = if (liquid) 0.12f else 0.06f),
                 indicatorStroke = palette.highlight.copy(alpha = if (liquid) 0.20f else 0.10f)
             )

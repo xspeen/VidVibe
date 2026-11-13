@@ -22,8 +22,8 @@ android {
         applicationId = "com.vidvibe.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 33
-        versionName = "2.8.4"
+        versionCode = 34
+        versionName = "2.8.5"
 
         vectorDrawables {
             useSupportLibrary = true
@@ -127,6 +127,7 @@ dependencies {
     implementation("androidx.media3:media3-session:1.5.1")
 
     implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("androidx.palette:palette-ktx:1.0.0")
     implementation("io.coil-kt:coil-video:2.7.0")
 
     implementation("androidx.datastore:datastore-preferences:1.1.1")

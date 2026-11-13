@@ -23,18 +23,40 @@ class AudioPlaybackService : MediaSessionService() {
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? =
         mediaSession
 
+    /**
+     * Swiping VidVibe away must never take the music with it. The service is
+     * already in the foreground by the time playback starts, and declaring
+     * stopWithTask=false keeps the system from tearing it down with the task,
+     * so returning here really does leave audio running.
+     */
     override fun onTaskRemoved(rootIntent: Intent?) {
         if (AudioEngine.state.value.isPlaying) {
-            // Keep the foreground service alive so audio continues in the
-            // background, exactly like a music app.
+            // Re-assert the foreground state: some OEM builds drop it when the
+            // task goes away, which is what used to kill playback here. While
+            // actually playing, MediaSessionService is guaranteed to answer
+            // this with startForeground().
+            runCatching { startForegroundService(Intent(this, AudioPlaybackService::class.java)) }
+            return
+        }
+        if (AudioEngine.state.value.hasQueue) {
+            // Paused with a queue: stopWithTask=false already keeps the service
+            // alive, so leave it running instead of demanding a foreground slot
+            // that is not granted while idle.
             return
         }
         stopSelf()
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        // If Android ever kills us, bring the session back rather than leave
+        // the queue orphaned without controls.
+        return android.app.Service.START_STICKY
+    }
+
     override fun onDestroy() {
         mediaSession = null
-        AudioEngine.release()
+        AudioEngine.detachService()
         super.onDestroy()
     }
 

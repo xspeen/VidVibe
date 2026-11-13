@@ -104,6 +104,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.vidvibe.app.data.AppSettings
 import com.vidvibe.app.data.formatFileSize
+import com.vidvibe.app.ui.components.screenSurface
 import com.vidvibe.app.ui.theme.AnimationStyle
 import com.vidvibe.app.ui.theme.AppFont
 import com.vidvibe.app.ui.theme.AppThemeMode
@@ -142,6 +143,7 @@ fun MeScreen(
     settings: AppSettings,
     librarySizeLabel: String,
     onApplyCustomization: (CustomizationSelection) -> Unit,
+    onMeshGradientChange: (Boolean) -> Unit,
     onSubPageChanged: (Boolean) -> Unit,
     showToast: (String) -> Unit
 ) {
@@ -189,6 +191,7 @@ fun MeScreen(
                 settings = settings,
                 onBack = { page = ProfilePage.Home },
                 onApplyCustomization = onApplyCustomization,
+                onMeshGradientChange = onMeshGradientChange,
                 showToast = showToast
             )
         }
@@ -206,7 +209,7 @@ private fun ProfileHome(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
+            .screenSurface(background)
     ) {
         Column(
             modifier = Modifier
@@ -257,7 +260,7 @@ private fun DownloadHistoryPage(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
+            .screenSurface(background)
     ) {
         Column(
             modifier = Modifier
@@ -324,6 +327,7 @@ private fun AppSettingsPage(
     settings: AppSettings,
     onBack: () -> Unit,
     onApplyCustomization: (CustomizationSelection) -> Unit,
+    onMeshGradientChange: (Boolean) -> Unit,
     showToast: (String) -> Unit
 ) {
     val background = LocalAppBackground.current
@@ -337,6 +341,7 @@ private fun AppSettingsPage(
     var glass by remember { mutableStateOf(MenuGlass.from(settings.glassColor)) }
     var iconPack by remember { mutableStateOf(IconPack.from(settings.iconPack)) }
     var theme by remember { mutableStateOf(AppThemeMode.from(settings.appTheme)) }
+    var mesh by remember { mutableStateOf(settings.meshGradient) }
     var showSuccess by remember { mutableStateOf(false) }
 
     LaunchedEffect(showSuccess) {
@@ -349,7 +354,7 @@ private fun AppSettingsPage(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
+            .screenSurface(background)
     ) {
         Column(
             modifier = Modifier
@@ -483,6 +488,45 @@ private fun AppSettingsPage(
                                 onClick = { glass = option }
                             )
                         }
+                    }
+                }
+
+                CustomGroup(
+                    icon = Icons.Outlined.AutoAwesome,
+                    title = "Mesh Gradient"
+                ) {
+                    Text(
+                        text = "Layers translucent frosted-glass panels over a " +
+                            "blurred, colour-sampled version of the album " +
+                            "cover that is playing, on top of the flat dark " +
+                            "surface.",
+                        fontSize = 11.5.sp,
+                        color = Color.White.copy(alpha = 0.48f),
+                        lineHeight = 16.sp,
+                        modifier = Modifier.padding(bottom = 9.dp)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OptionButton(
+                            label = "On",
+                            selected = mesh,
+                            onClick = {
+                                mesh = true
+                                onMeshGradientChange(true)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        OptionButton(
+                            label = "Off",
+                            selected = !mesh,
+                            onClick = {
+                                mesh = false
+                                onMeshGradientChange(false)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
 

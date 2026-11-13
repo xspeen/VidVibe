@@ -137,19 +137,16 @@ jobs:
 
             Built automatically by GitHub Actions from the source at this tag.
 
-            What's new in 2.8.4:
-            - New Audio section alongside Videos, Folders and Playlists: save music with album art and play it inside VidVibe
-            - Audio downloads use yt-dlp's audio-only path and land in Music/VidVibe with tags and cover art
-            - YouTube Music, Spotify, Apple Music, SoundCloud, Deezer, Tidal, Bandcamp and Audiomack links are recognised and auto-switch the downloader to audio
-            - Music keeps playing after the app is closed; lock-screen, notification and Bluetooth controls come from a real media session
-            - Floating mini player above the nav bar and a full-screen clay audio player with a seekable queue
-            - Finished queue cards fill the whole card, show a slow-motion green tick with glow and sparkles, then remove themselves
-            - Red count badges on Videos, Folders, Playlists and Audio clear with an animation when the section is opened
-            - Platform logos now render on the link field, every queue card and the audio list
-            - Video player: tap the centre to pause or play, swipe right for the next video and left for the previous one, with a play/pause overlay
-            - The end-of-video overlay is now an opaque clay card, which removes the liquid-glass glitch around Previous and Next
-            - Glassmorphism toned down across the app; new Clay background and Clay floating-menu color, plus a Moss background
-            - Windows: responsive laptop layout that switches to an icon rail on narrow windows, adaptive backdrop, content column capped on wide screens
+            What's new in 2.8.5:
+            - New Glassmorphic Mesh Gradient design: translucent, frosted-glass panels layered over a heavily blurred, colour-sampled version of the album cover that is playing, sitting on a flat dark-mode surface for depth without hurting readability
+            - The mesh is sampled from the live artwork with Android Palette, drifts slowly, and falls back to the chosen background look when nothing is playing
+            - Every surface reworked as frosted glass: queue panel and queue cards, the full-screen audio player, its queue list, transport controls, mini player and navigation
+            - New Mesh Gradient toggle in Me > App Settings > Mesh Gradient, on by default and applied instantly alongside the rest of the customization options
+            - Fixed closing the app while audio was playing: the playback service now survives the task being swiped away (stopWithTask=false), re-asserts its foreground state, and restarts itself if the system kills it
+            - The media session re-attaches to the still-playing player after a service restart, so the queue and lock-screen controls never get orphaned
+            - POST_NOTIFICATIONS is now requested, so the playback notification and lock-screen transport controls actually appear on Android 13+
+            - The audio player leaves itself automatically if the queue ends up empty instead of stranding you on a dead screen
+            - Download queue now has exactly one loader: the floating progress overlay no longer competes with the queue card, which fills, ticks and removes itself
 
             Assets:
             - `app-release.apk` - optimized universal Android release build signed with the VidVibe release key (v1, v2, and v3 signature schemes; arm64-v8a, armeabi-v7a, and x86_64 native libraries)

@@ -22,7 +22,6 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -50,6 +49,7 @@ import com.vidvibe.app.download.QueueStatus
 import com.vidvibe.app.ui.components.AboutVidVibeDialog
 import com.vidvibe.app.ui.components.CustomBottomNav
 import com.vidvibe.app.ui.components.DownloadSavedCard
+import com.vidvibe.app.ui.components.MeshGradientBackground
 import com.vidvibe.app.ui.components.VIDVIBE_GITHUB_URL
 import com.vidvibe.app.ui.components.VidVibeToastHost
 import com.vidvibe.app.ui.screens.AudioMiniPlayer
@@ -60,7 +60,6 @@ import com.vidvibe.app.ui.screens.MeScreen
 import com.vidvibe.app.ui.screens.OnboardingScreen
 import com.vidvibe.app.ui.screens.TrashScreen
 import com.vidvibe.app.ui.screens.VideoPlayerScreen
-import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.viewmodel.MainViewModel
 import kotlinx.coroutines.delay
 
@@ -149,16 +148,15 @@ fun VidVibeApp(viewModel: MainViewModel) {
         selectedTab = 0
     }
 
-    val appBackground = LocalAppBackground.current
     val navVisible = playerVideo == null && !showTour && !showAudioPlayer
     val navHidden = selectionActive || downloaderFullScreen || profileSubPage
     val navHideFraction = if (selectionActive || profileSubPage) 2f else 1.5f
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(appBackground)
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        // Flat dark-mode surface + blurred, colour-sampled album cover. Every
+        // screen above it paints frosted panels instead of its own background.
+        MeshGradientBackground(Modifier.fillMaxSize())
+
         Box(Modifier.fillMaxSize()) {
             val tabContent: @Composable (Int) -> Unit = { tab ->
                 when (tab) {
@@ -239,6 +237,7 @@ fun VidVibeApp(viewModel: MainViewModel) {
                                 appTheme = selection.appTheme.key
                             )
                         },
+                        onMeshGradientChange = viewModel::setMeshGradient,
                         onSubPageChanged = { profileSubPage = it },
                         showToast = { showToast(it) }
                     )

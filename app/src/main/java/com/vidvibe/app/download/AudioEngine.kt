@@ -29,6 +29,7 @@ data class AudioPlaybackState(
     val buffering: Boolean = false
 ) {
     val current: VideoItem? get() = queue.getOrNull(index)
+    val hasQueue: Boolean get() = queue.isNotEmpty()
     val hasNext: Boolean get() = index in 0 until queue.lastIndex
     val hasPrevious: Boolean get() = index > 0
 }
@@ -48,10 +49,7 @@ object AudioEngine {
     private val _state = MutableStateFlow(AudioPlaybackState())
     val state: StateFlow<AudioPlaybackState> = _state.asStateFlow()
 
-    fun session(context: Context): MediaSession {
-        ensurePlayer(context)
-        return session!!
-    }
+    fun session(context: Context): MediaSession = ensureSession(context)
 
     fun play(context: Context, tracks: List<VideoItem>, index: Int) {
         if (tracks.isEmpty()) return
@@ -139,7 +137,19 @@ object AudioEngine {
         _state.value = AudioPlaybackState()
     }
 
-    /** Called by the service when Android tears the process down. */
+    /**
+     * Called when the service goes away. The session belongs to the service so
+     * it has to go, but the player is deliberately left running when something
+     * is audible: START_STICKY brings the service straight back and it
+     * re-attaches to the same ExoPlayer, so swiping the app closed never drops
+     * the audio.
+     */
+    fun detachService() {
+        session?.release()
+        session = null
+        if (!_state.value.isPlaying) release()
+    }
+
     fun release() {
         scope?.cancel()
         scope = null
@@ -148,6 +158,15 @@ object AudioEngine {
         player?.release()
         player = null
         _state.value = AudioPlaybackState()
+    }
+
+    /** Re-creates the session for a player that outlived its service. */
+    private fun ensureSession(context: Context): MediaSession {
+        session?.let { return it }
+        val exo = ensurePlayer(context)
+        val created = MediaSession.Builder(context.applicationContext, exo).build()
+        session = created
+        return created
     }
 
     private fun ensurePlayer(context: Context): ExoPlayer {
@@ -163,7 +182,6 @@ object AudioEngine {
             )
             setHandleAudioBecomingNoisy(true)
         }
-        val mediaSession = MediaSession.Builder(app, exo).build()
         exo.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) = publish()
 
@@ -178,7 +196,6 @@ object AudioEngine {
             ) = publish()
         })
         player = exo
-        session = mediaSession
         val engineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         scope = engineScope
         engineScope.launch {

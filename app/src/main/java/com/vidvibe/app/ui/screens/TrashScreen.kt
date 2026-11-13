@@ -70,6 +70,7 @@ import com.vidvibe.app.ui.components.FloatingMenuContext
 import com.vidvibe.app.ui.components.FloatingMenuState
 import com.vidvibe.app.ui.components.FloatingPanel
 import com.vidvibe.app.ui.components.VidVibeFloatingMenu
+import com.vidvibe.app.ui.components.screenSurface
 import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.theme.LocalAppTextColor
 import com.vidvibe.app.ui.theme.VidVibeBorder
@@ -197,7 +198,7 @@ fun TrashScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
+            .screenSurface(background)
     ) {
         Column(Modifier.fillMaxSize()) {
             Box(

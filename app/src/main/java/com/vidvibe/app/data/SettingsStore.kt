@@ -19,6 +19,8 @@ private val Context.vidVibeDataStore: DataStore<Preferences> by preferencesDataS
 data class AppSettings(
     val fontSizeSp: Float = 15f,
     val liquidGlass: Boolean = true,
+    /** Glassmorphic mesh gradient sampled from the playing album cover. */
+    val meshGradient: Boolean = true,
     val backgroundColor: Int = 0xFF050507.toInt(),
     val wifiOnly: Boolean = false,
     val onboardingSeen: Boolean = false,
@@ -41,6 +43,7 @@ class SettingsStore(private val context: Context) {
     private object Keys {
         val fontSize = floatPreferencesKey("font_size_sp")
         val liquidGlass = booleanPreferencesKey("liquid_glass")
+        val meshGradient = booleanPreferencesKey("mesh_gradient")
         val backgroundColor = intPreferencesKey("background_color")
         val wifiOnly = booleanPreferencesKey("wifi_only")
         val onboardingSeen = booleanPreferencesKey("onboarding_seen")
@@ -62,6 +65,7 @@ class SettingsStore(private val context: Context) {
         AppSettings(
             fontSizeSp = preferences[Keys.fontSize] ?: 15f,
             liquidGlass = preferences[Keys.liquidGlass] ?: true,
+            meshGradient = preferences[Keys.meshGradient] ?: true,
             backgroundColor = preferences[Keys.backgroundColor] ?: 0xFF050507.toInt(),
             wifiOnly = preferences[Keys.wifiOnly] ?: false,
             onboardingSeen = preferences[Keys.onboardingSeen] ?: false,
@@ -86,6 +90,10 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setLiquidGlass(enabled: Boolean) {
         context.vidVibeDataStore.edit { it[Keys.liquidGlass] = enabled }
+    }
+
+    suspend fun setMeshGradient(enabled: Boolean) {
+        context.vidVibeDataStore.edit { it[Keys.meshGradient] = enabled }
     }
 
     suspend fun setBackgroundColor(color: Int) {

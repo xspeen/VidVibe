@@ -282,7 +282,7 @@ private fun Sidebar(state: AppState, onQuit: () -> Unit, compact: Boolean) {
                         color = TextMain
                     )
                     Text(
-                        text = "Windows 2.8.4",
+                        text = "Windows 2.8.5",
                         fontSize = 10.sp,
                         color = TextFaint
                     )
@@ -1129,7 +1129,7 @@ private fun SettingsPage(state: AppState, gutter: androidx.compose.ui.unit.Dp = 
         SectionHeader("About", "VidVibe for Windows")
         GlassCard(Modifier.fillMaxWidth()) {
             Text(
-                text = "VidVibe 2.8.4",
+                text = "VidVibe 2.8.5",
                 fontSize = 11.5.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = TextMain

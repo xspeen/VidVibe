@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -67,9 +68,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlinx.coroutines.delay
 import com.vidvibe.app.data.VideoItem
 import com.vidvibe.app.download.AudioEngine
 import com.vidvibe.app.download.AudioPlaybackState
+import com.vidvibe.app.ui.components.LocalMeshEnabled
+import com.vidvibe.app.ui.theme.LocalGlassStyle
 import com.vidvibe.app.data.formatDuration
 
 private val ClayTop = Color(0xFF2C2924)
@@ -88,6 +92,15 @@ fun AudioPlayerScreen(onBack: () -> Unit) {
     val track = state.current
 
     BackHandler { onBack() }
+
+    // If the queue is torn down under us (service stopped, last track
+    // removed), don't leave the user on a dead "Nothing playing" screen.
+    LaunchedEffect(track == null) {
+        if (track == null) {
+            delay(900)
+            onBack()
+        }
+    }
 
     if (track == null) {
         Box(
@@ -115,13 +128,23 @@ fun AudioPlayerScreen(onBack: () -> Unit) {
         label = "album-angle"
     )
 
+    // Flat clay surface normally; with the mesh on the colour-sampled album
+    // cover already sits behind this screen, so only frosted panels are drawn.
+    val meshOn = LocalMeshEnabled.current
+    val glass = LocalGlassStyle.current
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF141311), Color(0xFF070708))
-                )
+            .then(
+                if (meshOn) {
+                    Modifier
+                } else {
+                    Modifier.background(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF141311), Color(0xFF070708))
+                        )
+                    )
+                }
             )
     ) {
         // Soft clay glow behind the artwork.
@@ -155,7 +178,8 @@ fun AudioPlayerScreen(onBack: () -> Unit) {
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.07f))
+                        .background(glass.bodyTop)
+                        .border(1.dp, glass.stroke, CircleShape)
                         .clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
@@ -299,8 +323,12 @@ private fun AlbumArt(track: VideoItem, angle: Float, playing: Boolean) {
                     spotColor = ClayGreen.copy(alpha = 0.35f)
                 )
                 .clip(RoundedCornerShape(38.dp))
-                .background(Brush.verticalGradient(listOf(ClayTop, ClayBottom)))
-                .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(38.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(ClayTop.copy(alpha = 0.80f), ClayBottom.copy(alpha = 0.66f))
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(38.dp))
                 .padding(10.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -476,10 +504,13 @@ private fun TransportButton(
             .clip(CircleShape)
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFF34302A), Color(0xFF1E1B17))
+                    listOf(
+                        Color(0xFF3A352D).copy(alpha = 0.62f),
+                        Color(0xFF1E1B17).copy(alpha = 0.52f)
+                    )
                 )
             )
-            .border(1.dp, Color.White.copy(alpha = 0.08f), CircleShape)
+            .border(1.dp, Color.White.copy(alpha = 0.16f), CircleShape)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -498,10 +529,18 @@ private fun QueueList(
     state: AudioPlaybackState,
     onPick: (Int) -> Unit
 ) {
+    val glass = LocalGlassStyle.current
+    val panel = RoundedCornerShape(22.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 18.dp)
+            .clip(panel)
+            .background(
+                Brush.verticalGradient(listOf(glass.bodyTop, glass.bodyBottom))
+            )
+            .border(1.dp, glass.stroke, panel)
+            .padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp),
@@ -626,8 +665,12 @@ fun AudioMiniPlayer(
                 spotColor = ClayGreen.copy(alpha = 0.25f)
             )
             .clip(shape)
-            .background(Brush.verticalGradient(listOf(Color(0xF2292621), Color(0xF2161411))))
-            .border(1.dp, Color.White.copy(alpha = 0.09f), shape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xB32E2A24), Color(0xB3171512))
+                )
+            )
+            .border(1.dp, Color.White.copy(alpha = 0.16f), shape)
             .clickable(onClick = onOpen)
     ) {
         Column {

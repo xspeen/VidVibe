@@ -321,6 +321,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { settingsStore.setLiquidGlass(enabled) }
     }
 
+    fun setMeshGradient(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setMeshGradient(enabled) }
+    }
+
     fun setBackgroundColor(color: Int) {
         viewModelScope.launch { settingsStore.setBackgroundColor(color) }
     }

@@ -118,11 +118,12 @@ import com.vidvibe.app.ui.components.FloatingMenuColor
 import com.vidvibe.app.ui.components.FloatingMenuContext
 import com.vidvibe.app.ui.components.FloatingMenuState
 import com.vidvibe.app.ui.components.FloatingPanel
-import com.vidvibe.app.ui.components.FluidBackground
 import com.vidvibe.app.ui.components.PlaylistNameDialog
 import com.vidvibe.app.ui.components.PlaylistPickerDialog
 import com.vidvibe.app.ui.components.PlatformLogo
 import com.vidvibe.app.ui.components.PullToRefresh
+import com.vidvibe.app.ui.components.ScreenBackdrop
+import com.vidvibe.app.ui.components.screenSurface
 import com.vidvibe.app.ui.components.VidVibeFloatingMenu
 import com.vidvibe.app.ui.theme.VidVibeRed
 import com.vidvibe.app.ui.theme.VidVibeSurface2
@@ -309,9 +310,9 @@ fun LocalScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Ink)
+            .screenSurface(Ink)
     ) {
-        FluidBackground()
+        ScreenBackdrop()
 
         Column(Modifier.fillMaxSize()) {
             LocalHero(

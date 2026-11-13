@@ -98,6 +98,7 @@ import com.vidvibe.app.ui.components.FloatingMenuColor
 import com.vidvibe.app.ui.components.FloatingMenuState
 import com.vidvibe.app.ui.components.FloatingPanel
 import com.vidvibe.app.ui.components.PlatformLogo
+import com.vidvibe.app.ui.components.screenSurface
 import com.vidvibe.app.ui.components.VidVibeFloatingMenu
 import com.vidvibe.app.ui.theme.LocalAppBackground
 import com.vidvibe.app.ui.theme.LocalGlassStyle
@@ -219,10 +220,16 @@ fun DownloaderScreen(
         }
     }
 
-    LaunchedEffect(downloadState) {
+    // The queue card is the single loader for every queued download: it fills
+    // full width, plays the tick itself and then removes itself. The floating
+    // progress overlay would be a second loader fighting it, so it is only used
+    // when there is no queue to render.
+    LaunchedEffect(downloadState, queue.size) {
         when (val state = downloadState) {
             is DownloadState.Running -> {
-                if (menu.panel == FloatingPanel.Progress) {
+                if (queue.isNotEmpty()) {
+                    if (menu.panel == FloatingPanel.Progress) menu.hide()
+                } else if (menu.panel == FloatingPanel.Progress) {
                     menu.updateProgress(state.progress / 100f)
                 } else {
                     menu.beginProgress(auto = false, progress = state.progress / 100f)
@@ -230,9 +237,13 @@ fun DownloaderScreen(
             }
 
             is DownloadState.Complete -> {
-                menu.updateProgress(1f)
-                delay(450)
-                menu.showSuccess()
+                if (queue.isNotEmpty()) {
+                    if (menu.panel == FloatingPanel.Progress) menu.hide()
+                } else {
+                    menu.updateProgress(1f)
+                    delay(450)
+                    menu.showSuccess()
+                }
             }
 
             is DownloadState.Error -> {
@@ -253,7 +264,7 @@ fun DownloaderScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(background)
+            .screenSurface(background)
     ) {
         Column(
             modifier = Modifier
@@ -339,7 +350,9 @@ fun DownloaderScreen(
                     menu.hide()
                     showToast("Paste a link first")
                 } else {
-                    menu.beginProgress(auto = false, progress = 0f)
+                    // Hand straight over to the queue card instead of opening a
+                    // second, floating loader.
+                    menu.hide()
                     onStartDownload(link, selectedQuality, audioOnly)
                 }
             },
@@ -638,9 +651,7 @@ private fun DownloadQueuePanel(
             .fillMaxWidth()
             .clip(shape)
             .background(
-                Brush.verticalGradient(
-                    listOf(Color(0xFF17171E), Color(0xFF0D0D12))
-                )
+                Brush.verticalGradient(listOf(glass.bodyTop, glass.bodyBottom))
             )
             .border(1.dp, glass.stroke, shape)
             .padding(horizontal = 12.dp, vertical = 13.dp)
@@ -750,9 +761,10 @@ private fun QueueCard(
                 .background(
                     Brush.horizontalGradient(
                         listOf(
-                            if (retryable) Color(0xFF0E3A24) else Color.Transparent,
+                            if (retryable) Color(0xFF0E3A24).copy(alpha = 0.85f) else Color.Transparent,
                             Color.Transparent,
-                            if (running) Color(0xFF3A1518) else Color(0xFF1B1B22)
+                            if (running) Color(0xFF3A1518).copy(alpha = 0.85f)
+                            else Color(0xFF1B1B22).copy(alpha = 0.7f)
                         )
                     )
                 )
@@ -781,8 +793,15 @@ private fun QueueCard(
                 .fillMaxWidth()
                 .offset { IntOffset(settled.roundToInt(), 0) }
                 .clip(shape)
-                .background(Color(0xFF111116))
-                .border(1.dp, Color.White.copy(alpha = 0.07f), shape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF16161D).copy(alpha = 0.74f),
+                            Color(0xFF0E0E13).copy(alpha = 0.64f)
+                        )
+                    )
+                )
+                .border(1.dp, Color.White.copy(alpha = 0.12f), shape)
                 .pointerInput(task.id, task.state) {
                     detectHorizontalDragGestures(
                         onDragStart = { dragging = true },
